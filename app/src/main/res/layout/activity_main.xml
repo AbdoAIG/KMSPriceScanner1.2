@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.drawerlayout.widget.DrawerLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/drawer_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F7FA"
+    tools:context=".MainActivity">
+
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/img_header_logo"
+                android:layout_width="260dp"
+                android:layout_height="100dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="4dp"
+                android:src="@drawable/company_logo"
+                android:scaleType="fitCenter"
+                android:adjustViewBounds="true"
+                android:contentDescription="شعار الشركة" />
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginBottom="12dp"
+                android:layout_marginTop="8dp"
+                app:cardCornerRadius="28dp"
+                app:cardElevation="3dp"
+                app:cardBackgroundColor="#FFFFFF">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="8dp">
+
+                    <ImageButton
+                        android:id="@+id/btn_menu"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@drawable/menu"
+                        android:padding="5dp"        android:scaleType="fitCenter" android:tooltipText="القائمة"
+                        android:contentDescription="القائمة" />
+
+                    <EditText
+                        android:id="@+id/et_search"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="match_parent"
+                        android:background="@android:color/transparent"
+                        android:hint="ابحث عن منتج..."
+                        android:textColor="#1D1B20"
+                        android:textColorHint="#79747E"
+                        android:textSize="16sp"
+                        android:paddingHorizontal="8dp"
+                        android:inputType="text"/>
+
+                    <ImageButton
+                        android:id="@+id/btn_history"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@drawable/history"
+                        android:padding="7dp"        android:scaleType="fitCenter" android:tooltipText="سجل المسح"
+                        android:contentDescription="السجل" />
+
+                    <ImageButton
+                        android:id="@+id/btn_open_cart"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@drawable/cart"
+                        android:padding="7dp"        android:scaleType="fitCenter" android:tooltipText="السلة"
+                        android:contentDescription="السلة" />
+                        android:contentDescription="السلة" />
+                    <View
+                        android:layout_width="1dp"
+                        android:layout_height="24dp"
+                        android:background="#E0E0E0"
+                        android:layout_marginHorizontal="4dp"/>
+
+                    <ImageButton
+                        android:id="@+id/btn_update_admin"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@android:drawable/ic_popup_sync"
+                        app:tint="#1565C0"
+                        android:tooltipText="تحديث البيانات"
+                        android:contentDescription="تحديث" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <LinearLayout
+                android:id="@+id/layout_branches_container_wrapper"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingBottom="8dp">
+
+                <TextView
+                    android:id="@+id/txt_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="جاهز للمسح"
+                    android:textSize="12sp"
+                    android:textColor="#757575"
+                    android:layout_marginBottom="8dp"/>
+
+                <HorizontalScrollView
+                    android:id="@+id/scroll_branches"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none"
+                    android:paddingHorizontal="16dp"
+                    android:clipToPadding="false"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:id="@+id/layout_branches_container"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"/>
+                </HorizontalScrollView>
+            </LinearLayout>
+
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_banner_container"
+                android:layout_width="match_parent"
+                android:layout_height="240dp"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginBottom="16dp"
+                android:layout_marginTop="4dp"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="#FFFFFF">
+
+                <androidx.viewpager2.widget.ViewPager2
+                    android:id="@+id/banner_view_pager"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+            </androidx.cardview.widget.CardView>
+
+            <ListView
+                android:id="@+id/list_view_products"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:divider="@android:color/transparent"
+                android:dividerHeight="0dp"
+                android:paddingBottom="88dp"
+                android:clipToPadding="false"
+                android:listSelector="@android:color/transparent"/>
+        </LinearLayout>
+
+        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+            android:id="@+id/btn_scan"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="24dp"
+            android:text="أمسح الباركود    𝄃𝄂𝄂𝄀𝄁𝄃𝄂𝄂𝄃"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:iconTint="#FFFFFF"
+            app:backgroundTint="#1565C0"
+            app:elevation="6dp"
+            android:contentDescription="مسح باركود" />
+
+        <FrameLayout
+            android:id="@+id/effect_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@android:color/transparent"
+            android:elevation="0dp"
+            android:clickable="false"
+            android:focusable="false" />
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:orientation="vertical"
+        android:background="#FFFFFF"
+        android:fitsSystemWindows="true">
+
+        <com.google.android.material.navigation.NavigationView
+            android:id="@+id/nav_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="#FFFFFF"
+            app:itemHorizontalPadding="16dp"
+            app:itemIconPadding="24dp"
+            app:itemIconTint="#1565C0"
+            app:itemTextAppearance="@style/NavTextStyle"
+            app:itemTextColor="#37474F"
+            app:itemBackground="@drawable/nav_item_bg_selector"
+            app:headerLayout="@layout/nav_header"
+            app:menu="@menu/activity_main_drawer" />
+
+        <include layout="@layout/nav_footer" />
+
+    </LinearLayout>
+
+</androidx.drawerlayout.widget.DrawerLayout>

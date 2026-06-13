@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">KMS Price Scanner</string>
+    <string name="nav_header_title">KMS Price Scanner</string>
+    <string name="nav_header_subtitle">تصفح الأقسام والأسعار بسهولة</string>
+    <string name="search_hint">ابحث بالاسم أو الباركود...</string>
+
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+</resources>
