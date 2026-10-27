@@ -1,0 +1,21 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Theme.KMSPriceScanner" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/kms_blue</item>
+        <item name="colorPrimaryVariant">@color/kms_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+
+        <item name="android:statusBarColor">#F5F7FA</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <style name="Base.Theme.KMSPriceScanner" parent="Theme.Material3.DayNight.NoActionBar" />
+
+    <style name="NavTextStyle" parent="TextAppearance.AppCompat.Body1">
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">#37474F</item>
+    </style>
+
+</resources>
