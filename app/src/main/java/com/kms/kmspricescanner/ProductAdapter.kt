@@ -4,74 +4,42 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.BaseAdapter
+import android.widget.ArrayAdapter
 import android.widget.ImageView
 import android.widget.TextView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.resource.bitmap.CenterCrop
-import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 
-class ProductAdapter(private val context: Context, private val dataSource: List<Product>) : BaseAdapter() {
+class ProductAdapter(context: Context, private val products: List<ProductEntity>) :
+    ArrayAdapter<ProductEntity>(context, 0, products) {
 
-    private val inflater: LayoutInflater = context.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
+    override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+        var view = convertView
+        if (view == null) {
+            view = LayoutInflater.from(context).inflate(R.layout.list_item_product, parent, false)
+        }
 
-    override fun getCount(): Int {
-        return dataSource.size
-    }
+        val product = products[position]
 
-    override fun getItem(position: Int): Any {
-        return dataSource[position]
-    }
+        val tvName = view!!.findViewById<TextView>(R.id.tv_product_name_item)
+        val tvCategory = view.findViewById<TextView>(R.id.tv_product_category_item)
+        val tvPrice = view.findViewById<TextView>(R.id.tv_product_price_item)
+        val imgProduct = view.findViewById<ImageView>(R.id.img_product_item)
 
-    override fun getItemId(position: Int): Long {
-        return position.toLong()
-    }
-
-    override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-        // 1. استخدام التصميم الجديد المحسن
-        val rowView = convertView ?: inflater.inflate(R.layout.list_item_product, parent, false)
-
-        // 2. الحصول على المنتج الحالي
-        val product = getItem(position) as Product
-
-        // 3. ربط العناصر (تمت إضافة عنصر التصنيف الجديد)
-        val tvName = rowView.findViewById<TextView>(R.id.tv_product_name_item)
-        val tvCategory = rowView.findViewById<TextView>(R.id.tv_product_category_item) // ✅ العنصر الجديد
-        val tvPrice = rowView.findViewById<TextView>(R.id.tv_product_price_item)
-        val imgProduct = rowView.findViewById<ImageView>(R.id.img_product_item)
-
-        // 4. تعبئة البيانات
         tvName.text = product.name
-
-        // ✅ عرض القسم تحت الاسم (يمكنك تغييرها لـ product.localBarcode لو فضلت عرض الباركود)
-        tvCategory.text = product.department
-
-        // عرض السعر
+        tvCategory.text = "${product.department} - ${product.branch}"
         tvPrice.text = product.pricePiece
 
-        // 5. تحميل الصورة وتنسيقها وتسريعها
-        if (product.imageUrl.isNotEmpty() && product.imageUrl != "null") {
-            try {
-                Glide.with(context)
-                    .load(product.imageUrl)
-                    // ✅ حفظ الصورة في ذاكرة الكاش لتسريع ظهورها لاحقاً
-                    .diskCacheStrategy(DiskCacheStrategy.ALL)
-                    // ✅ عرض نسخة مصغرة سريعة جداً فوراً
-                    .thumbnail(0.1f)
-                    // ✅ CenterCrop لملء المربع، و RoundedCorners 12 لمطابقة التصميم
-                    .transform(CenterCrop(), RoundedCorners(12))
-                    .placeholder(R.drawable.company_logo)
-                    .error(R.drawable.company_logo)
-                    .into(imgProduct)
-            } catch (e: Exception) {
-                imgProduct.setImageResource(R.drawable.company_logo)
-            }
+        if (product.imageUrl.isNotEmpty()) {
+            Glide.with(context)
+                .load(product.imageUrl)
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .placeholder(R.drawable.company_logo)
+                .into(imgProduct)
         } else {
-            // في حال عدم وجود صورة، نضع الشعار
             imgProduct.setImageResource(R.drawable.company_logo)
         }
 
-        return rowView
+        return view
     }
 }

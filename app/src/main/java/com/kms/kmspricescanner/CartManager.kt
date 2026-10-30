@@ -1,62 +1,60 @@
 package com.kms.kmspricescanner
 
-// كلاس يمثل عنصراً واحداً داخل السلة (المنتج + الكمية + السعر)
-data class CartItem(
-    val product: Product,
-    var quantity: Int,
-    var unitPrice: Double
-) {
-    // ✅ تم إصلاح المشكلة هنا: ضرب الكمية في سعر الوحدة
-    val totalPrice: Double get() = quantity * unitPrice
-}
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 
 object CartManager {
-    private val items = mutableListOf<CartItem>()
 
-    fun addItem(product: Product, quantity: Int, price: Double) {
-        // ✅ التعديل هنا: نقارن الباركود والسعر معاً لمنع دمج القطعة مع الكرتونة
-        val existingItem = items.find {
-            it.product.localBarcode == product.localBarcode && it.unitPrice == price
-        }
+    // البيانات الحية للسلة: الشاشات ستراقب هذا المتغير للتحديث التلقائي
+    private val _cartItems = MutableLiveData<MutableList<CartItem>>(mutableListOf())
+    val cartItems: LiveData<MutableList<CartItem>> = _cartItems
+
+    // 1. إضافة منتج للسلة
+    fun addItem(product: ProductEntity, quantity: Int) {
+        val currentList = _cartItems.value ?: mutableListOf()
+
+        // التحقق الذكي: إذا كان المنتج موجوداً مسبقاً، نزيد كميته فقط ولا نكرره في القائمة
+        val existingItem = currentList.find { it.product.localBarcode == product.localBarcode }
 
         if (existingItem != null) {
             existingItem.quantity += quantity
         } else {
-            items.add(CartItem(product, quantity, price))
+            currentList.add(CartItem(product, quantity))
         }
+
+        // إبلاغ الشاشات بتحديث البيانات (Reactive Programming)
+        _cartItems.postValue(currentList)
     }
 
-    // ✅ دالة جديدة: تقليل الكمية
-    fun decreaseQuantity(barcode: String) {
-        val item = items.find { it.product.localBarcode == barcode }
-        if (item != null) {
-            if (item.quantity > 1) {
-                item.quantity-- // تقليل حبة واحدة
+    // 2. تحديث كمية منتج موجود
+    fun updateQuantity(product: ProductEntity, newQuantity: Int) {
+        val currentList = _cartItems.value ?: mutableListOf()
+        val existingItem = currentList.find { it.product.localBarcode == product.localBarcode }
+
+        if (existingItem != null) {
+            if (newQuantity > 0) {
+                existingItem.quantity = newQuantity
             } else {
-                items.remove(item) // إذا كانت حبة واحدة، نحذفها تماماً
+                currentList.remove(existingItem) // حذف المنتج تماماً إذا أصبحت الكمية صفر
             }
+            _cartItems.postValue(currentList)
         }
     }
 
-    fun increaseQuantity(barcode: String) {
-        val item = items.find { it.product.localBarcode == barcode }
-        if (item != null) {
-            item.quantity++ // زيادة حبة واحدة
-        }
+    // 3. حذف منتج من السلة
+    fun removeItem(product: ProductEntity) {
+        val currentList = _cartItems.value ?: mutableListOf()
+        currentList.removeAll { it.product.localBarcode == product.localBarcode }
+        _cartItems.postValue(currentList)
     }
 
-    // ✅ دالة جديدة: حذف المنتج بالكامل
-    fun removeItem(barcode: String) {
-        items.removeAll { it.product.localBarcode == barcode }
-    }
-
-    fun getItems(): List<CartItem> = items
-
-    fun getGrandTotal(): Double {
-        return items.sumOf { it.totalPrice }
-    }
-
+    // 4. تفريغ السلة بالكامل (بعد إتمام البيع مثلاً)
     fun clearCart() {
-        items.clear()
+        _cartItems.postValue(mutableListOf())
+    }
+
+    // 5. حساب إجمالي الفاتورة بالكامل
+    fun getCartTotal(): Double {
+        return _cartItems.value?.sumOf { it.getTotalPrice() } ?: 0.0
     }
 }

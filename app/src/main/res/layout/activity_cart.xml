@@ -37,7 +37,6 @@
             android:textStyle="bold"
             android:gravity="center" />
 
-        <!-- زر الحذف في الأعلى لأنه إجراء خطير -->
         <ImageButton
             android:id="@+id/btn_clear_cart"
             android:layout_width="48dp"
@@ -50,17 +49,14 @@
             android:contentDescription="إفراغ السلة" />
     </LinearLayout>
 
-    <!-- 2. قائمة المنتجات المضافة للفاتورة -->
-    <ListView
-        android:id="@+id/list_view_cart"
+    <!-- ✅ التعديل هنا: تحويل ListView إلى RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_view_cart"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:divider="@android:color/transparent"
-        android:dividerHeight="8dp"
         android:clipToPadding="false"
-        android:padding="16dp"
-        android:listSelector="@android:color/transparent"/>
+        android:padding="16dp" />
 
     <!-- 3. لوحة التحكم السفلية الاحترافية (الإجمالي + الإجراءات) -->
     <com.google.android.material.card.MaterialCardView
@@ -109,7 +105,6 @@
                     android:textStyle="bold"/>
             </LinearLayout>
 
-            <!-- خط فاصل خفيف -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
@@ -151,7 +146,6 @@
                         android:textStyle="bold"/>
                 </LinearLayout>
 
-                <!-- خط فاصل رأسي بين الزرين -->
                 <View
                     android:layout_width="1dp"
                     android:layout_height="match_parent"

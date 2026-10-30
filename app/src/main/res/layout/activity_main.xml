@@ -28,7 +28,7 @@
                 android:src="@drawable/company_logo"
                 android:scaleType="fitCenter"
                 android:adjustViewBounds="true"
-                android:contentDescription="شعار الشركة" />
+                android:contentDescription="الشعار" />
 
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
@@ -53,7 +53,9 @@
                         android:layout_height="48dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:src="@drawable/menu"
-                        android:padding="5dp"        android:scaleType="fitCenter" android:tooltipText="القائمة"
+                        android:padding="5dp"
+                        android:scaleType="fitCenter"
+                        android:tooltipText="القائمة"
                         android:contentDescription="القائمة" />
 
                     <EditText
@@ -75,7 +77,9 @@
                         android:layout_height="48dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:src="@drawable/history"
-                        android:padding="7dp"        android:scaleType="fitCenter" android:tooltipText="سجل المسح"
+                        android:padding="7dp"
+                        android:scaleType="fitCenter"
+                        android:tooltipText="السجل"
                         android:contentDescription="السجل" />
 
                     <ImageButton
@@ -84,9 +88,11 @@
                         android:layout_height="48dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:src="@drawable/cart"
-                        android:padding="7dp"        android:scaleType="fitCenter" android:tooltipText="السلة"
-                        android:contentDescription="السلة" />
-                        android:contentDescription="السلة" />
+                        android:padding="7dp"
+                        android:scaleType="fitCenter"
+                        android:tooltipText="عربة التسوق"
+                        android:contentDescription="عربة التسوق" />
+
                     <View
                         android:layout_width="1dp"
                         android:layout_height="24dp"
@@ -100,7 +106,7 @@
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:src="@android:drawable/ic_popup_sync"
                         app:tint="#1565C0"
-                        android:tooltipText="تحديث البيانات"
+                        android:tooltipText="تحديث"
                         android:contentDescription="تحديث" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
@@ -117,7 +123,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:text="جاهز للمسح"
+                    android:text=""
                     android:textSize="12sp"
                     android:textColor="#757575"
                     android:layout_marginBottom="8dp"/>
@@ -154,19 +160,16 @@
                     android:id="@+id/banner_view_pager"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent" />
-
             </androidx.cardview.widget.CardView>
 
-            <ListView
-                android:id="@+id/list_view_products"
+            <!-- ✅ تم استبدال ListView بـ RecyclerView هنا -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler_view_products"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:divider="@android:color/transparent"
-                android:dividerHeight="0dp"
                 android:paddingBottom="88dp"
-                android:clipToPadding="false"
-                android:listSelector="@android:color/transparent"/>
+                android:clipToPadding="false"/>
         </LinearLayout>
 
         <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
@@ -175,14 +178,14 @@
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
             android:layout_margin="24dp"
-            android:text="أمسح الباركود    𝄃𝄂𝄂𝄀𝄁𝄃𝄂𝄂𝄃"
+            android:text="أمسح الباركود    𝄃𝄂𝄂𝄀𝄁𝄃𝄂𝄂𝄃 "
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold"
             app:iconTint="#FFFFFF"
             app:backgroundTint="#1565C0"
             app:elevation="6dp"
-            android:contentDescription="مسح باركود" />
+            android:contentDescription="مسح الباركود" />
 
         <FrameLayout
             android:id="@+id/effect_overlay"
@@ -192,6 +195,7 @@
             android:elevation="0dp"
             android:clickable="false"
             android:focusable="false" />
+
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
     <LinearLayout
@@ -218,7 +222,5 @@
             app:menu="@menu/activity_main_drawer" />
 
         <include layout="@layout/nav_footer" />
-
     </LinearLayout>
-
 </androidx.drawerlayout.widget.DrawerLayout>

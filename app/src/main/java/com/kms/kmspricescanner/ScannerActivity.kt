@@ -16,10 +16,12 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import kotlinx.coroutines.launch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -31,9 +33,7 @@ class ScannerActivity : AppCompatActivity() {
     @Volatile
     private var isProcessing = false
 
-    // متغير لحفظ وقت بدء التشغيل
     private var startTime: Long = 0
-
     private var cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
     private var cameraProvider: ProcessCameraProvider? = null
 
@@ -41,7 +41,6 @@ class ScannerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_scanner)
 
-        // تسجيل وقت البداية
         startTime = System.currentTimeMillis()
 
         viewFinder = findViewById(R.id.viewFinder)
@@ -60,7 +59,6 @@ class ScannerActivity : AppCompatActivity() {
 
         btnSwitch.setOnClickListener {
             isProcessing = false
-            // إعادة تعيين الوقت عند التبديل لمنع المسح الفوري
             startTime = System.currentTimeMillis()
 
             cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
@@ -87,7 +85,7 @@ class ScannerActivity : AppCompatActivity() {
                 .build()
                 .also {
                     it.setAnalyzer(cameraExecutor, BarcodeAnalyzer { barcodeValue ->
-                        // شرط الأمان: تجاهل القراءة في أول 1500 ميلي ثانية (1.5 ثانية)
+                        // شرط الأمان: تجاهل القراءة في أول 1500 ميلي ثانية
                         if (System.currentTimeMillis() - startTime > 1500) {
                             handleScannedBarcode(barcodeValue)
                         }
@@ -117,13 +115,40 @@ class ScannerActivity : AppCompatActivity() {
             if (isProcessing) return
             isProcessing = true
 
-            runOnUiThread {
+            // ✅ الماسح الذكي: يبحث في قاعدة البيانات المحلية (Room) فور التقاط الباركود
+            lifecycleScope.launch {
                 try {
                     cameraProvider?.unbindAll()
-                    val resultIntent = Intent()
-                    resultIntent.putExtra("scanned_code", barcodeValue)
-                    setResult(RESULT_OK, resultIntent)
-                    finish()
+
+                    val db = AppDatabase.getDatabase(this@ScannerActivity)
+                    val repo = ProductRepository(db.productDao())
+                    val foundProducts = repo.searchProducts(barcodeValue)
+                    val exactProduct = foundProducts.find { it.localBarcode == barcodeValue || it.globalBarcode == barcodeValue }
+
+                    if (exactProduct != null) {
+                        // المنتج مسجل: احفظه في السجل وافتح شاشة التفاصيل مباشرة
+                        ScanHistoryHelper.saveProduct(this@ScannerActivity, exactProduct.localBarcode)
+
+                        val intent = Intent(this@ScannerActivity, ProductDetailsActivity::class.java).apply {
+                            putExtra("name", exactProduct.name)
+                            putExtra("pricePiece", exactProduct.pricePiece)
+                            putExtra("priceDozen", exactProduct.priceDozen)
+                            putExtra("priceCarton", exactProduct.priceCarton)
+                            putExtra("localBarcode", exactProduct.localBarcode)
+                            putExtra("globalBarcode", exactProduct.globalBarcode)
+                            putExtra("department", exactProduct.department)
+                            putExtra("branch", exactProduct.branch)
+                            putExtra("imageUrl", exactProduct.imageUrl)
+                        }
+                        startActivity(intent)
+                        finish()
+                    } else {
+                        // المنتج غير مسجل: أعد الباركود للصفحة الرئيسية لطلب الإضافة
+                        val resultIntent = Intent()
+                        resultIntent.putExtra("scanned_code", barcodeValue)
+                        setResult(RESULT_OK, resultIntent)
+                        finish()
+                    }
                 } catch (e: Exception) {
                     finish()
                 }
@@ -133,7 +158,7 @@ class ScannerActivity : AppCompatActivity() {
 
     private class BarcodeAnalyzer(private val onBarcodeFound: (String) -> Unit) : ImageAnalysis.Analyzer {
 
-        // ✅ السر هنا: إنشاء فلتر ذكي يقرأ الباركود التجاري (1D) فقط ويتجاهل الـ QR Code تماماً
+        // ✅ الفلتر الذكي: يتجاهل QR ويركز على الأكواد التجارية (1D)
         private val options = BarcodeScannerOptions.Builder()
             .setBarcodeFormats(
                 Barcode.FORMAT_EAN_13,
@@ -147,7 +172,6 @@ class ScannerActivity : AppCompatActivity() {
             )
             .build()
 
-        // تمرير الفلتر الذكي للمكتبة لتقوم بتنفيذه
         private val scanner = BarcodeScanning.getClient(options)
 
         @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
