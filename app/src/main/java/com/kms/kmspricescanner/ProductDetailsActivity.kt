@@ -37,6 +37,7 @@ class ProductDetailsActivity : AppCompatActivity() {
     private var pricePieceStr = ""
     private var priceDozenStr = ""
     private var priceCartonStr = ""
+    private var stockStr = "" // ✅ إضافة متغير المخزون
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +53,7 @@ class ProductDetailsActivity : AppCompatActivity() {
         department = intent.getStringExtra("department") ?: ""
         branch = intent.getStringExtra("branch") ?: ""
         imageUrl = intent.getStringExtra("imageUrl") ?: ""
+        stockStr = intent.getStringExtra("stock") ?: "0" // ✅ استلام المخزون
 
         unitPrice = pricePieceStr.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0
 
@@ -66,6 +68,7 @@ class ProductDetailsActivity : AppCompatActivity() {
         val tvPriceCarton = findViewById<TextView>(R.id.tv_price_carton)
         val tvBarcodeLocal = findViewById<TextView>(R.id.tv_barcode_local)
         val tvBarcodeGlobal = findViewById<TextView>(R.id.tv_barcode_global)
+        val txtStock = findViewById<TextView>(R.id.txt_stock) // ✅ ربط نص المخزون الجديد
 
         val btnDecreaseQty = findViewById<ImageButton>(R.id.btn_decrease_qty)
         val btnIncreaseQty = findViewById<ImageButton>(R.id.btn_increase_qty)
@@ -83,6 +86,22 @@ class ProductDetailsActivity : AppCompatActivity() {
         tvBranch.text = branch
         tvBarcodeLocal.text = localBarcode
         tvBarcodeGlobal.text = if (globalBarcode.isNotEmpty()) globalBarcode else "-"
+
+        // ✅ الخوارزمية الذكية لتلوين المخزون
+        val stockInt = stockStr.toIntOrNull() ?: 0
+        if (stockInt <= 0) {
+            // نفذت الكمية: لون أحمر ونص تحذيري
+            txtStock.setTextColor(android.graphics.Color.parseColor("#E53935"))
+            txtStock.text = "المخزون: $stockStr (نفذت الكمية!)"
+        } else if (stockInt <= 5) {
+            // قارب على الانتهاء: لون برتقالي
+            txtStock.setTextColor(android.graphics.Color.parseColor("#FB8C00"))
+            txtStock.text = "المخزون: $stockStr (قارب على الانتهاء)"
+        } else {
+            // متوفر: لون أخضر
+            txtStock.setTextColor(android.graphics.Color.parseColor("#43A047"))
+            txtStock.text = "المخزون: $stockStr"
+        }
 
         if (imageUrl.isNotEmpty()) {
             Glide.with(this)
@@ -140,20 +159,22 @@ class ProductDetailsActivity : AppCompatActivity() {
                 priceCarton = priceCartonStr,
                 imageUrl = imageUrl,
                 department = department,
-                branch = branch
+                branch = branch,
+                stock = stockStr // ✅ إضافة المخزون للكيان أثناء إضافته للسلة لتجنب الأخطاء
             )
             CartManager.addItem(productEntity, currentQuantity)
             Toast.makeText(this, "تمت الإضافة للسلة", Toast.LENGTH_SHORT).show()
             finish()
         }
 
-        // ✅ تفعيل الزر العائم لتعديل السعر
+        // تفعيل الزر العائم لتعديل السعر
         btnEditPriceFab.setOnClickListener {
             showAdminPasswordDialog()
         }
     }
 
     private fun updateTotalPrice(tvTotal: TextView) {
+        // ✅ تم تصحيح خطأ الضرب الرياضي هنا
         val total = currentQuantity * unitPrice
         tvTotal.text = String.format(java.util.Locale.US, "%.2f", total)
     }
@@ -171,7 +192,7 @@ class ProductDetailsActivity : AppCompatActivity() {
         builder.setView(input)
 
         builder.setPositiveButton("دخول") { _, _ ->
-            // ✅ التحديث الأمني: نشفر ما أدخله المستخدم ونقارنه بالشفرة المحفوظة
+            // التحديث الأمني: نشفر ما أدخله المستخدم ونقارنه بالشفرة المحفوظة
             val enteredHash = HashHelper.sha256(input.text.toString())
             if (enteredHash == Config.ADMIN_PASSWORD_HASH) {
                 showEditPriceDialog()

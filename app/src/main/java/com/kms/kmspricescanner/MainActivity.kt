@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
-import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
@@ -44,6 +43,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
+import android.text.InputType
+import android.widget.RadioButton
+import android.widget.RadioGroup
 
 class MainActivity : AppCompatActivity() {
 
@@ -65,6 +67,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cardBannerContainer: androidx.cardview.widget.CardView
     private lateinit var bannerViewPager: ViewPager2
 
+    // ✅ 1. تعريف زر الفلتر كمتغير عام للتحكم فيه من أي مكان
+    private lateinit var btnFilter: TextView
+
     private val bannerImages = ArrayList<Any>()
     private val sliderHandler = Handler(Looper.getMainLooper())
     private lateinit var sliderRunnable: Runnable
@@ -74,10 +79,15 @@ class MainActivity : AppCompatActivity() {
 
     private var currentDepartmentProducts = ArrayList<ProductEntity>()
     private var productAdapter: ProductRecyclerAdapter? = null
+    private var activeBranchFilter: String = "الكل"
+
+    // ✅ 2. ذاكرة الشاشة للقسم الحالي
+    private var currentSelectedDept: String = "عرض الكل"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        CartManager.init(this)
 
         viewModel = ViewModelProvider(this)[MainViewModel::class.java]
 
@@ -114,11 +124,24 @@ class MainActivity : AppCompatActivity() {
         layoutBranchesContainer = findViewById(R.id.layout_branches_container)
         cardBannerContainer = findViewById(R.id.card_banner_container)
 
+        // ربط زر الفلتر
+        btnFilter = findViewById(R.id.btnFilter)
+
         recyclerViewProducts.layoutManager = LinearLayoutManager(this)
     }
 
+    // ✅ 3. الدالة الذكية التي تحدد متى يظهر زر الفلتر
+    private fun updateFilterButtonVisibility() {
+        val isSearchEmpty = etSearch.text.isNullOrEmpty()
+        // يختفي الزر فقط إذا كان مربع البحث فارغاً وأنت في شاشة "عرض الكل"
+        if (isSearchEmpty && currentSelectedDept == "عرض الكل") {
+            btnFilter.visibility = View.GONE
+        } else {
+            btnFilter.visibility = View.VISIBLE
+        }
+    }
+
     private fun observeViewModel() {
-        // ✅ هذا هو النمط المعماري المتطور: معالجة حالة الشاشة رياضياً
         viewModel.uiState.observe(this) { state ->
             when (state) {
                 is ProductUiState.Loading -> {
@@ -126,23 +149,33 @@ class MainActivity : AppCompatActivity() {
                     btnScan.isEnabled = false
                     etSearch.hint = "جاري التحميل..."
                     txtStatus.text = "جاري الاتصال وتحديث البيانات..."
-                    txtStatus.setTextColor(Color.parseColor("#1565C0")) // لون أزرق للتحميل
+                    txtStatus.setTextColor(Color.parseColor("#1565C0"))
                 }
                 is ProductUiState.Empty -> {
                     etSearch.isEnabled = true
                     btnScan.isEnabled = true
                     etSearch.hint = "ابحث عن منتج..."
-                    updateListView(emptyList()) // تفريغ الشاشة
+                    updateListView(emptyList())
                     txtStatus.text = state.message
-                    txtStatus.setTextColor(Color.parseColor("#2E7D32")) // لون أخضر داكن
+                    txtStatus.setTextColor(Color.parseColor("#2E7D32"))
                 }
                 is ProductUiState.Success -> {
                     etSearch.isEnabled = true
                     btnScan.isEnabled = true
                     etSearch.hint = "ابحث عن منتج..."
-                    updateListView(state.products)
-                    txtStatus.text = state.statusMessage
-                    txtStatus.setTextColor(Color.parseColor("#008000")) // لون أخضر فاتح (نجاح)
+
+                    currentDepartmentProducts = ArrayList(state.products)
+
+                    if (activeBranchFilter != "الكل") {
+                        val branchFiltered = currentDepartmentProducts.filter { it.branch.equals(activeBranchFilter, ignoreCase = true) }
+                        updateListView(branchFiltered)
+                        txtStatus.text = "مفلتر > $activeBranchFilter (${branchFiltered.size})"
+                    } else {
+                        updateListView(state.products)
+                        txtStatus.text = state.statusMessage
+                    }
+
+                    txtStatus.setTextColor(Color.parseColor("#008000"))
                 }
                 is ProductUiState.Error -> {
                     etSearch.isEnabled = true
@@ -150,7 +183,7 @@ class MainActivity : AppCompatActivity() {
                     etSearch.hint = "ابحث عن منتج..."
                     updateListView(emptyList())
                     txtStatus.text = state.errorMessage
-                    txtStatus.setTextColor(Color.RED) // لون أحمر (للأخطاء)
+                    txtStatus.setTextColor(Color.RED)
                 }
             }
         }
@@ -183,11 +216,17 @@ class MainActivity : AppCompatActivity() {
 
         navView.setNavigationItemSelectedListener { menuItem ->
             val selectedDept = menuItem.title.toString()
-            if (selectedDept == "عرض الكل") {
-                ignoreSearchWatcher = true
-                etSearch.setText("")
-                ignoreSearchWatcher = false
 
+            // ✅ تحديث ذاكرة الشاشة للقسم الحالي
+            currentSelectedDept = selectedDept
+            activeBranchFilter = "الكل"
+
+            // مسح شريط البحث بذكاء لتجنب التداخل
+            ignoreSearchWatcher = true
+            etSearch.setText("")
+            ignoreSearchWatcher = false
+
+            if (selectedDept == "عرض الكل") {
                 viewModel.loadAllProducts()
                 scrollBranches.visibility = View.GONE
                 cardBannerContainer.visibility = View.VISIBLE
@@ -198,24 +237,38 @@ class MainActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     val db = AppDatabase.getDatabase(this@MainActivity)
                     val repo = ProductRepository(db.productDao())
-                    currentDepartmentProducts = ArrayList(repo.getProductsByDepartment(selectedDept))
-                    setupBranchButtons(selectedDept)
+                    val rawDeptProducts = repo.getProductsByDepartment(selectedDept)
+                    setupBranchButtons(selectedDept, rawDeptProducts)
                 }
             }
+
+            // ✅ استدعاء دالة الرؤية لإظهار زر الفلتر في القسم
+            updateFilterButtonVisibility()
+
             drawerLayout.closeDrawer(GravityCompat.START)
             true
         }
     }
 
     private fun setupSearchBox() {
+        btnFilter.setOnClickListener {
+            showFilterDialog()
+        }
+
         etSearch.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 if (s.isNullOrEmpty()) {
                     etSearch.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0)
                 } else {
                     etSearch.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, android.R.drawable.ic_menu_close_clear_cancel, 0)
+                    // ✅ بمجرد بدء البحث اليدوي، نعتبر أن المستخدم خرج من القسم إلى البحث العام
+                    currentSelectedDept = "عرض الكل"
                 }
+
+                // تحديث ظهور زر الفلتر بناءً على النص والقسم
+                updateFilterButtonVisibility()
 
                 if (ignoreSearchWatcher) return
 
@@ -231,21 +284,25 @@ class MainActivity : AppCompatActivity() {
                     viewModel.searchProducts(s.toString())
                 }
             }
+
             override fun afterTextChanged(s: Editable?) {}
         })
 
         etSearch.setOnTouchListener { view, event ->
             if (event.action == android.view.MotionEvent.ACTION_UP) {
                 if (etSearch.compoundDrawablesRelative[2] != null) {
-                    val touchArea = 30
+                    val touchArea = 70
                     val isRtl = view.layoutDirection == View.LAYOUT_DIRECTION_RTL
-                    val isHit = if (isRtl) {
+                    val isClearHit = if (isRtl) {
                         event.x <= (etSearch.compoundPaddingLeft + touchArea)
                     } else {
                         event.x >= (etSearch.width - etSearch.compoundPaddingRight - touchArea)
                     }
-                    if (isHit) {
+
+                    if (isClearHit) {
                         etSearch.setText("")
+                        viewModel.applyFilters(null, null, SortOrder.NONE, "")
+                        updateFilterButtonVisibility()
                         return@setOnTouchListener true
                     }
                 }
@@ -299,25 +356,28 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // إخفاء لوحة المفاتيح إذا كانت مفتوحة
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         imm.hideSoftInputFromWindow(etSearch.windowToken, 0)
 
-        // تفريغ مربع البحث بذكاء لتجنب تفعيل دالة البحث التلقائي
         ignoreSearchWatcher = true
         etSearch.setText("")
         ignoreSearchWatcher = false
 
-        // إخفاء البانرات وأزرار الأقسام
         scrollBranches.visibility = View.GONE
         cardBannerContainer.visibility = View.GONE
 
-        // ✅ توجيه الأمر للعقل المدبر (ViewModel) ليقوم بالعمل الثقيل في الخلفية
+        // عند فتح السجل يتم إعادة تعيين القسم وتحديث الزر
+        currentSelectedDept = "عرض الكل"
+        updateFilterButtonVisibility()
+
         viewModel.loadHistoryProducts(historyBarcodes)
     }
 
     private fun openProductDetailsPage(p: ProductEntity) {
-        ScanHistoryHelper.saveProduct(this, p.localBarcode)
+        // ✅ ضمان حفظ الباركود المتوفر (محلي وإن كان فارغاً نستخدم الدولي) لتجنب السجلات الفارغة
+        val validBarcode = if (p.localBarcode.isNotBlank()) p.localBarcode else p.globalBarcode
+        ScanHistoryHelper.saveProduct(this, validBarcode)
+
         val intent = Intent(this, ProductDetailsActivity::class.java)
         intent.putExtra("name", p.name)
         intent.putExtra("pricePiece", p.pricePiece)
@@ -328,6 +388,7 @@ class MainActivity : AppCompatActivity() {
         intent.putExtra("department", p.department)
         intent.putExtra("branch", p.branch)
         intent.putExtra("imageUrl", p.imageUrl)
+        intent.putExtra("stock", p.stock)
         startActivity(intent)
     }
 
@@ -374,8 +435,8 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun setupBranchButtons(deptName: String) {
-        val branches = currentDepartmentProducts.map { it.branch.trim() }
+    private fun setupBranchButtons(deptName: String, rawProducts: List<ProductEntity>) {
+        val branches = rawProducts.map { it.branch.trim() }
             .filter { it.isNotEmpty() && it != "عام" }.distinct().sorted()
 
         if (branches.isEmpty()) {
@@ -416,6 +477,8 @@ class MainActivity : AppCompatActivity() {
         btn.background = gradientDrawable
 
         btn.setOnClickListener {
+            activeBranchFilter = branchName
+
             if (isAll) {
                 updateListView(currentDepartmentProducts)
                 txtStatus.text = "قسم: $deptName (${currentDepartmentProducts.size})"
@@ -423,15 +486,15 @@ class MainActivity : AppCompatActivity() {
                 val branchFiltered = currentDepartmentProducts.filter { it.branch.equals(branchName, ignoreCase = true) }
                 updateListView(branchFiltered)
                 txtStatus.text = "$deptName > $branchName (${branchFiltered.size})"
-
-                resetBranchButtonsColors()
-                val selectedBg = GradientDrawable()
-                selectedBg.shape = GradientDrawable.RECTANGLE
-                selectedBg.cornerRadius = 50f
-                selectedBg.setColor(Color.parseColor("#FF9800"))
-                btn.background = selectedBg
-                btn.setTextColor(Color.WHITE)
             }
+
+            resetBranchButtonsColors()
+            val selectedBg = GradientDrawable()
+            selectedBg.shape = GradientDrawable.RECTANGLE
+            selectedBg.cornerRadius = 50f
+            selectedBg.setColor(Color.parseColor("#FF9800"))
+            btn.background = selectedBg
+            btn.setTextColor(Color.WHITE)
         }
         layoutBranchesContainer.addView(btn)
     }
@@ -633,5 +696,77 @@ class MainActivity : AppCompatActivity() {
                 .setDuration(800 + random.nextInt(400).toLong())
                 .withEndAction { effectOverlay!!.removeView(particle) }.start()
         }
+    }
+
+    private fun showFilterDialog() {
+        val currentFilters = viewModel.getFilters()
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(60, 40, 60, 40)
+        }
+
+        val etMin = EditText(this).apply {
+            hint = "الحد الأدنى للسعر (جنيه)"
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            currentFilters.minPrice?.let { setText(it.toString()) }
+        }
+
+        val etMax = EditText(this).apply {
+            hint = "الحد الأقصى للسعر (جنيه)"
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            currentFilters.maxPrice?.let { setText(it.toString()) }
+            val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            params.setMargins(0, 20, 0, 20)
+            layoutParams = params
+        }
+
+        val titleSort = TextView(this).apply {
+            text = "ترتيب النتائج:"
+            textSize = 16f
+            setTextColor(Color.BLACK)
+            setPadding(0, 20, 0, 10)
+        }
+
+        val radioGroup = RadioGroup(this)
+        val rbNone = RadioButton(this).apply { text = "الترتيب الافتراضي" }
+        val rbAsc = RadioButton(this).apply { text = "السعر: من الأقل للأعلى" }
+        val rbDesc = RadioButton(this).apply { text = "السعر: من الأعلى للأقل" }
+
+        radioGroup.addView(rbNone)
+        radioGroup.addView(rbAsc)
+        radioGroup.addView(rbDesc)
+
+        when (currentFilters.sortOrder) {
+            SortOrder.PRICE_ASC -> rbAsc.isChecked = true
+            SortOrder.PRICE_DESC -> rbDesc.isChecked = true
+            SortOrder.NONE -> rbNone.isChecked = true
+        }
+
+        layout.addView(etMin)
+        layout.addView(etMax)
+        layout.addView(titleSort)
+        layout.addView(radioGroup)
+
+        AlertDialog.Builder(this)
+            .setTitle("تصفية وترتيب البحث \uD83D\uDD0D")
+            .setView(layout)
+            .setPositiveButton("تطبيق") { _, _ ->
+                val min = etMin.text.toString().toDoubleOrNull()
+                val max = etMax.text.toString().toDoubleOrNull()
+                val sort = when (radioGroup.checkedRadioButtonId) {
+                    rbAsc.id -> SortOrder.PRICE_ASC
+                    rbDesc.id -> SortOrder.PRICE_DESC
+                    else -> SortOrder.NONE
+                }
+                viewModel.applyFilters(min, max, sort, etSearch.text.toString())
+                Toast.makeText(this, "تم تطبيق الفلتر بنجاح", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("إلغاء", null)
+            .setNeutralButton("مسح الفلاتر") { _, _ ->
+                viewModel.applyFilters(null, null, SortOrder.NONE, etSearch.text.toString())
+                Toast.makeText(this, "تم مسح الفلاتر", Toast.LENGTH_SHORT).show()
+            }
+            .show()
     }
 }

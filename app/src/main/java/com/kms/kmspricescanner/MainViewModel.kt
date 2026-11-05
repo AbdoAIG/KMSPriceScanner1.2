@@ -10,11 +10,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+enum class SortOrder { NONE, PRICE_ASC, PRICE_DESC }
+data class SearchFilterState(
+    val minPrice: Double? = null,
+    val maxPrice: Double? = null,
+    val sortOrder: SortOrder = SortOrder.NONE
+)
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: ProductRepository
 
-    // ✅ الترقية العظمى: مصدر الحقيقة الوحيد (Single Source of Truth) للشاشة
     private val _uiState = MutableLiveData<ProductUiState>()
     val uiState: LiveData<ProductUiState> = _uiState
 
@@ -29,16 +35,70 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private var totalProductsCount = 0
 
+    private var currentFilter = SearchFilterState()
+
+    // ✅ ذاكرة القسم: ليتذكر المحرك القسم الحالي أثناء الفلترة
+    private var currentDepartment = ""
+
     init {
         val productDao = AppDatabase.getDatabase(application).productDao()
         repository = ProductRepository(productDao)
         initializeDatabase()
     }
 
+    private fun extractPriceFast(priceStr: String): Double {
+        if (priceStr.isEmpty()) return 0.0
+        val sb = java.lang.StringBuilder()
+        for (i in 0 until priceStr.length) {
+            val c = priceStr[i]
+            if (c in '0'..'9' || c == '.') {
+                sb.append(c)
+            } else if (c in '٠'..'٩') {
+                sb.append(c - '٠')
+            }
+        }
+        return sb.toString().toDoubleOrNull() ?: 0.0
+    }
+
+    private fun applyFiltersToList(list: List<ProductEntity>): List<ProductEntity> {
+        if (currentFilter.minPrice == null && currentFilter.maxPrice == null && currentFilter.sortOrder == SortOrder.NONE) {
+            return list
+        }
+
+        var processedList = list.map { it to extractPriceFast(it.pricePiece) }
+
+        if (currentFilter.minPrice != null || currentFilter.maxPrice != null) {
+            val min = currentFilter.minPrice ?: 0.0
+            val max = currentFilter.maxPrice ?: Double.MAX_VALUE
+            processedList = processedList.filter { it.second in min..max }
+        }
+
+        processedList = when (currentFilter.sortOrder) {
+            SortOrder.PRICE_ASC -> processedList.sortedBy { it.second }
+            SortOrder.PRICE_DESC -> processedList.sortedByDescending { it.second }
+            SortOrder.NONE -> processedList
+        }
+
+        return processedList.map { it.first }
+    }
+
+    fun applyFilters(min: Double?, max: Double?, sort: SortOrder, currentQuery: String) {
+        currentFilter = SearchFilterState(min, max, sort)
+        if (currentQuery.isNotEmpty()) {
+            searchProducts(currentQuery)
+        } else if (currentDepartment.isNotEmpty()) {
+            // ✅ إذا كان في قسم معين، قم بفلترة القسم بدلاً من طرده للخارج
+            getProductsByDepartment(currentDepartment)
+        } else {
+            loadAllProducts()
+        }
+    }
+
+    fun getFilters(): SearchFilterState = currentFilter
+
     private fun initializeDatabase() {
         viewModelScope.launch {
-            _uiState.value = ProductUiState.Loading // إرسال حالة التحميل للشاشة
-
+            _uiState.value = ProductUiState.Loading
             var allProducts = repository.getAllProducts()
 
             if (allProducts.isEmpty()) {
@@ -58,48 +118,128 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun showEmptyScreen() {
-        _uiState.value = ProductUiState.Empty("العدد الكلي: $totalProductsCount صنف")
+        _uiState.value = ProductUiState.Empty("العدد الكلي: $totalProductsCount صنف\nيرجى البحث أو اختيار قسم من القائمة")
     }
 
     fun loadAllProducts() {
+        currentDepartment = "" // ✅ تصفير الذاكرة لأنه خرج للرئيسية
         viewModelScope.launch {
             val all = repository.getAllProducts()
-            _uiState.value = ProductUiState.Success(all, "العدد الكلي: ${all.size} صنف")
+            val finalResults = applyFiltersToList(all)
+            _uiState.value = ProductUiState.Success(finalResults, "العدد الكلي: ${finalResults.size} صنف (مفلتر)")
         }
     }
 
+    private var searchJob: kotlinx.coroutines.Job? = null
+
     fun searchProducts(query: String) {
-        viewModelScope.launch {
-            val normalizedQuery = query.trim()
+        searchJob?.cancel()
+        currentDepartment = "" // ✅ تصفير الذاكرة لأن البحث عالمي
+
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(250)
+
+            var normalizedQuery = query.trim()
                 .replace('٠', '0').replace('١', '1').replace('٢', '2')
                 .replace('٣', '3').replace('٤', '4').replace('٥', '5')
                 .replace('٦', '6').replace('٧', '7').replace('٨', '8')
-                .replace('٩', '9').lowercase()
+                .replace('٩', '9')
+                .replace('ة', 'ه')
+                .replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
+                .replace('ى', 'ي')
+                .lowercase()
+
+            val isBarcode = normalizedQuery.any { it.isDigit() } && !normalizedQuery.any { it.isLetter() }
+
+            if (isBarcode) {
+                val digitsOnly = normalizedQuery.filter { it.isDigit() }
+                if (digitsOnly.isNotEmpty()) {
+                    normalizedQuery = digitsOnly.trimStart('0')
+                    if (normalizedQuery.isEmpty()) normalizedQuery = "0"
+                }
+            }
 
             if (normalizedQuery.isEmpty()) {
                 showEmptyScreen()
             } else {
-                val searchResults = repository.searchProducts(normalizedQuery)
-                if (searchResults.isNotEmpty()) {
-                    _uiState.value = ProductUiState.Success(searchResults, "تم العثور على (${searchResults.size}) نتيجة")
+                val rawResults = withContext(Dispatchers.IO) { repository.searchProducts(normalizedQuery) }
+                val finalResults = applyFiltersToList(rawResults)
+
+                if (finalResults.isNotEmpty()) {
+                    _uiState.value = ProductUiState.Success(finalResults, "تم العثور على (${finalResults.size}) نتيجة")
                 } else {
-                    _uiState.value = ProductUiState.Error("لا توجد نتائج للبحث عن: $query")
+                    _uiState.value = ProductUiState.Error("لا توجد نتائج مطابقة للبحث أو الفلتر")
                 }
             }
         }
     }
 
     fun filterByDepartment(deptName: String) {
+        getProductsByDepartment(deptName)
+    }
+
+    fun getProductsByDepartment(deptName: String) {
+        currentDepartment = deptName // ✅ حفظ القسم في الذاكرة
+
         viewModelScope.launch {
-            val deptProducts = repository.getProductsByDepartment(deptName)
-            _uiState.value = ProductUiState.Success(deptProducts, "قسم: $deptName (${deptProducts.size})")
+            val rawResults = withContext(Dispatchers.IO) {
+                repository.getProductsByDepartment(deptName)
+            }
+
+            val finalResults = applyFiltersToList(rawResults)
+
+            if (finalResults.isNotEmpty()) {
+                _uiState.value = ProductUiState.Success(
+                    finalResults,
+                    "تم العثور على (${finalResults.size}) منتج"
+                )
+            } else {
+                _uiState.value = ProductUiState.Error("لا توجد منتجات مطابقة للفلتر في هذا القسم")
+            }
+        }
+    }
+
+    fun loadHistoryProducts(historyBarcodes: List<String>) {
+        currentDepartment = "" // تصفير الذاكرة
+        viewModelScope.launch {
+            _uiState.value = ProductUiState.Loading
+            val historyProducts = withContext(Dispatchers.IO) {
+                val allProducts = repository.getAllProducts()
+
+                // ✅ 1. بناء خريطتين (محلي ودولي) مع تنظيف قاسي للبيانات (تماما كما تفعل الكاميرا)
+                val localMap = allProducts.associateBy {
+                    var clean = it.localBarcode.replace(Regex("\\s+"), "").trimStart('0')
+                    if(clean.isEmpty()) clean = "0"
+                    clean
+                }
+                val globalMap = allProducts.associateBy {
+                    var clean = it.globalBarcode.replace(Regex("\\s+"), "").trimStart('0')
+                    if(clean.isEmpty()) clean = "0"
+                    clean
+                }
+
+                // ✅ 2. مطابقة السجل بذكاء (نبحث في المحلي، وإن لم نجده نبحث في الدولي)
+                historyBarcodes.mapNotNull { rawBarcode ->
+                    var cleanCode = rawBarcode.replace(Regex("\\s+"), "").trimStart('0')
+                    if (cleanCode.isEmpty()) cleanCode = "0"
+
+                    localMap[cleanCode] ?: globalMap[cleanCode]
+                }
+            }
+
+            val finalResults = applyFiltersToList(historyProducts)
+
+            if (finalResults.isEmpty()) {
+                _uiState.value = ProductUiState.Empty("لا توجد منتجات في السجل تطابق الفلتر")
+            } else {
+                _uiState.value = ProductUiState.Success(finalResults, "سجل آخر العمليات (${finalResults.size})")
+            }
         }
     }
 
     fun updateDatabaseFromServer() {
         viewModelScope.launch {
-            _uiState.value = ProductUiState.Loading // الشاشة ستفهم فوراً وتغلق أزرار البحث
-
+            _uiState.value = ProductUiState.Loading
             val success = withContext(Dispatchers.IO) {
                 val downloaded = repository.downloadAndSaveCsv(getApplication(), Config.CSV_URL, "kmsprices.csv")
                 if (downloaded) {
@@ -113,7 +253,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 totalProductsCount = allProducts.size
                 _departments.value = allProducts.map { it.department.trim() }
                     .filter { it.isNotEmpty() && !it.contains("http") }.distinct().sorted()
-
                 _uiState.value = ProductUiState.Success(emptyList(), "تم التحديث بنجاح! العدد الكلي: ${allProducts.size} صنف\nيرجى البحث أو اختيار قسم")
             } else {
                 _uiState.value = ProductUiState.Error("فشل التحديث: يرجى التحقق من الاتصال بالإنترنت")
@@ -136,32 +275,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val prefs = getApplication<Application>().getSharedPreferences("KMS_Theme", Context.MODE_PRIVATE)
                 prefs.edit().putString("theme_data", themeResponse).apply()
                 _themeData.postValue(themeResponse)
-            }
-        }
-    }
-    // ✅ دالة جلب السجل باحترافية (خوارزمية HashMap السريعة)
-    fun loadHistoryProducts(historyBarcodes: List<String>) {
-        viewModelScope.launch {
-            _uiState.value = ProductUiState.Loading // إظهار حالة التحميل فوراً
-
-            // نقل العمليات الحسابية المعقدة إلى مسار الخلفية (IO Thread) لمنع تجميد الشاشة
-            val historyProducts = withContext(Dispatchers.IO) {
-                val allProducts = repository.getAllProducts()
-
-                // تحويل القائمة إلى "قاموس" (HashMap) ليكون البحث لحظياً O(1) بدلاً من البحث البطيء O(N)
-                val productsMap = allProducts.associateBy { it.localBarcode.trim() }
-
-                // جلب المنتجات المطابقة فقط وإهمال الباركودات التي لم تعد موجودة
-                historyBarcodes.mapNotNull { productsMap[it.trim()] }
-            }
-
-            if (historyProducts.isEmpty()) {
-                _uiState.value = ProductUiState.Empty("لم يتم فتح أي منتجات بعد")
-            } else {
-                _uiState.value = ProductUiState.Success(
-                    historyProducts,
-                    "سجل آخر العمليات (${historyProducts.size})"
-                )
             }
         }
     }

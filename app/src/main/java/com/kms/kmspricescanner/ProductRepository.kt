@@ -72,7 +72,10 @@ class ProductRepository(private val productDao: ProductDao) {
                             priceCarton = tokens[5],
                             imageUrl = tokens[6],
                             department = tokens[7],
-                            branch = if (tokens.size > 8) tokens[8] else "عام"
+                            branch = if (tokens.size > 8) tokens[8] else "عام",
+                            // ✅ سحب المخزون بأمان تام (العمود رقم 10 في الإكسيل)
+                            // إذا كان الحقل فارغاً أو غير موجود، نضع "0" افتراضياً
+                            stock = if (tokens.size > 9 && tokens[9].isNotBlank()) tokens[9] else "0"
                         )
                     )
                 }

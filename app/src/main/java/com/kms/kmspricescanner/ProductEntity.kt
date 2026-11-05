@@ -4,13 +4,12 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-// ✅ تم تصحيح اسم الجدول ليتطابق مع (products_table) الموجود في ProductDao
 @Entity(
     tableName = "products_table",
     indices = [
-        Index(value = ["name"]),           // فهرس لتسريع البحث بالاسم
-        Index(value = ["globalBarcode"]),  // فهرس لتسريع البحث بالباركود الدولي
-        Index(value = ["department"])      // فهرس لتسريع التصفية بالأقسام
+        Index(value = ["name"]),
+        Index(value = ["globalBarcode"]),
+        Index(value = ["department"])
     ]
 )
 data class ProductEntity(
@@ -23,5 +22,6 @@ data class ProductEntity(
     val priceCarton: String,
     val imageUrl: String,
     val department: String,
-    val branch: String
+    val branch: String,
+    val stock: String // ✅ تمت إضافة حقل المخزون هنا
 )

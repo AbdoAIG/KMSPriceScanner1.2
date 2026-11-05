@@ -37,7 +37,9 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:src="@drawable/undo"
-                        android:padding="2dp"        android:scaleType="fitCenter" android:tooltipText="رجوع"
+                        android:padding="2dp"
+                        android:scaleType="fitCenter"
+                        android:tooltipText="رجوع"
                         android:background="?attr/selectableItemBackground"
                         android:contentDescription="رجوع" />
                 </com.google.android.material.card.MaterialCardView>
@@ -96,6 +98,7 @@
                 </com.google.android.material.card.MaterialCardView>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- قسم الهوية وتوفر المنتج -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -147,6 +150,32 @@
                             android:textStyle="bold"
                             android:textColor="#1565C0"/>
                     </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- ✅ الكارت الاحترافي الجديد الخاص بالمخزون -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/card_stock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardBackgroundColor="#FFFFFF"
+                    app:strokeColor="#E0E0E0"
+                    app:strokeWidth="1dp"
+                    app:cardElevation="0dp">
+
+                    <TextView
+                        android:id="@+id/txt_stock"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingVertical="12dp"
+                        android:paddingHorizontal="16dp"
+                        android:text="المخزون: جاري التحميل..."
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#757575"
+                        android:gravity="center"
+                        android:drawablePadding="8dp" />
                 </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
 

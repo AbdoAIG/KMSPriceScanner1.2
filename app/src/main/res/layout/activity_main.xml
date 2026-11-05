@@ -34,7 +34,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
                 android:layout_marginHorizontal="16dp"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="4dp"
                 android:layout_marginTop="8dp"
                 app:cardCornerRadius="28dp"
                 app:cardElevation="3dp"
@@ -111,6 +111,26 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+            <!-- ✅ زر التصفية والترتيب الجديد (مخفي مبدئياً) -->
+            <TextView
+                android:id="@+id/btnFilter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="8dp"
+                android:layout_marginHorizontal="16dp"
+                android:background="#E3F2FD"
+                android:drawableStart="@android:drawable/ic_menu_sort_by_size"
+                android:drawableTint="#1565C0"
+                android:drawablePadding="8dp"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:text="تصفية وترتيب النتائج"
+                android:textColor="#1565C0"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
             <LinearLayout
                 android:id="@+id/layout_branches_container_wrapper"
                 android:layout_width="match_parent"
@@ -162,7 +182,6 @@
                     android:layout_height="match_parent" />
             </androidx.cardview.widget.CardView>
 
-            <!-- ✅ تم استبدال ListView بـ RecyclerView هنا -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recycler_view_products"
                 android:layout_width="match_parent"

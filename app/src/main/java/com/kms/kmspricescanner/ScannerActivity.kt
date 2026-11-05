@@ -85,7 +85,6 @@ class ScannerActivity : AppCompatActivity() {
                 .build()
                 .also {
                     it.setAnalyzer(cameraExecutor, BarcodeAnalyzer { barcodeValue ->
-                        // شرط الأمان: تجاهل القراءة في أول 1500 ميلي ثانية
                         if (System.currentTimeMillis() - startTime > 1500) {
                             handleScannedBarcode(barcodeValue)
                         }
@@ -108,26 +107,40 @@ class ScannerActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun handleScannedBarcode(barcodeValue: String) {
+    private fun handleScannedBarcode(rawBarcodeValue: String) {
         if (isProcessing) return
 
         synchronized(this) {
             if (isProcessing) return
             isProcessing = true
 
-            // ✅ الماسح الذكي: يبحث في قاعدة البيانات المحلية (Room) فور التقاط الباركود
+            var cleanBarcode = rawBarcodeValue.replace(Regex("\\s+"), "")
+
+            if (cleanBarcode.all { it.isDigit() }) {
+                cleanBarcode = cleanBarcode.trimStart('0')
+                if (cleanBarcode.isEmpty()) cleanBarcode = "0"
+            }
+
             lifecycleScope.launch {
                 try {
                     cameraProvider?.unbindAll()
 
                     val db = AppDatabase.getDatabase(this@ScannerActivity)
                     val repo = ProductRepository(db.productDao())
-                    val foundProducts = repo.searchProducts(barcodeValue)
-                    val exactProduct = foundProducts.find { it.localBarcode == barcodeValue || it.globalBarcode == barcodeValue }
+
+                    val foundProducts = repo.searchProducts(cleanBarcode)
+
+                    val exactProduct = foundProducts.find {
+                        val dbLocalClean = it.localBarcode.replace(Regex("\\s+"), "").trimStart('0')
+                        val dbGlobalClean = it.globalBarcode.replace(Regex("\\s+"), "").trimStart('0')
+
+                        dbLocalClean == cleanBarcode || dbGlobalClean == cleanBarcode
+                    }
 
                     if (exactProduct != null) {
-                        // المنتج مسجل: احفظه في السجل وافتح شاشة التفاصيل مباشرة
-                        ScanHistoryHelper.saveProduct(this@ScannerActivity, exactProduct.localBarcode)
+                        // ✅ حفظ الباركود الصحيح في السجل (المحلي وإن كان فارغاً نستخدم الدولي)
+                        val validBarcode = if (exactProduct.localBarcode.isNotBlank()) exactProduct.localBarcode else exactProduct.globalBarcode
+                        ScanHistoryHelper.saveProduct(this@ScannerActivity, validBarcode)
 
                         val intent = Intent(this@ScannerActivity, ProductDetailsActivity::class.java).apply {
                             putExtra("name", exactProduct.name)
@@ -139,13 +152,13 @@ class ScannerActivity : AppCompatActivity() {
                             putExtra("department", exactProduct.department)
                             putExtra("branch", exactProduct.branch)
                             putExtra("imageUrl", exactProduct.imageUrl)
+                            putExtra("stock", exactProduct.stock)
                         }
                         startActivity(intent)
                         finish()
                     } else {
-                        // المنتج غير مسجل: أعد الباركود للصفحة الرئيسية لطلب الإضافة
                         val resultIntent = Intent()
-                        resultIntent.putExtra("scanned_code", barcodeValue)
+                        resultIntent.putExtra("scanned_code", cleanBarcode)
                         setResult(RESULT_OK, resultIntent)
                         finish()
                     }
@@ -158,7 +171,6 @@ class ScannerActivity : AppCompatActivity() {
 
     private class BarcodeAnalyzer(private val onBarcodeFound: (String) -> Unit) : ImageAnalysis.Analyzer {
 
-        // ✅ الفلتر الذكي: يتجاهل QR ويركز على الأكواد التجارية (1D)
         private val options = BarcodeScannerOptions.Builder()
             .setBarcodeFormats(
                 Barcode.FORMAT_EAN_13,
