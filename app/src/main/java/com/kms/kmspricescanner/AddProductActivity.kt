@@ -62,16 +62,16 @@ class AddProductActivity : AppCompatActivity() {
         return true
     }
 
-    // الاعتماد على Retrofit و Coroutines بدلاً من Volley
     private fun addProductToSheet() {
         btnSave.isEnabled = false
         btnSave.text = "جاري الحفظ..."
 
         lifecycleScope.launch {
             try {
-                // تجميع البيانات للإرسال
+                // ✅ تم تأمين نقطة الاتصال: تجميع البيانات وإرفاق "الحارس السري"
                 val params = mapOf(
                     "action" to "add",
+                    "token" to Config.SECRET_API_TOKEN, // 🔒 التوكن الأمني العظيم
                     "no" to scannedCode,
                     "barcode" to scannedCode,
                     "localBarcode" to scannedCode,

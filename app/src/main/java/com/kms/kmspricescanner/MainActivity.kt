@@ -46,6 +46,7 @@ import java.util.concurrent.TimeUnit
 import android.text.InputType
 import android.widget.RadioButton
 import android.widget.RadioGroup
+import com.kms.kmspricescanner.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
@@ -84,9 +85,12 @@ class MainActivity : AppCompatActivity() {
     // ✅ 2. ذاكرة الشاشة للقسم الحالي
     private var currentSelectedDept: String = "عرض الكل"
 
+    private lateinit var binding: ActivityMainBinding
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         CartManager.init(this)
 
         viewModel = ViewModelProvider(this)[MainViewModel::class.java]
@@ -402,24 +406,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPasswordDialog(scannedCode: String) {
+        // âœ… 1. Ù†Ø³Ø£Ù„ Ø§Ù„Ø­Ø§Ø±Ø³: Ù‡Ù„ Ø§Ù„Ù†Ø¸Ø§Ù… Ù…Ù‚Ù ÙˆÙ„ØŸ
+        if (AdminSecurityManager.isLockedOut(this)) return
+
         val builder = AlertDialog.Builder(this)
-        builder.setTitle("إذن المسؤول")
-        builder.setMessage("أدخل كلمة المرور:")
+        builder.setTitle("Ø¥Ø°Ù† Ø§Ù„Ù…Ø³Ø¤ÙˆÙ„")
+        builder.setMessage("Ø£Ø¯Ø®Ù„ ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±:")
         val input = EditText(this)
         input.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
         input.hint = "****"
         builder.setView(input)
-        builder.setPositiveButton("دخول") { _, _ ->
+
+        builder.setPositiveButton("Ø¯Ø®ÙˆÙ„") { _, _ ->
             val enteredHash = HashHelper.sha256(input.text.toString())
             if (enteredHash == Config.ADMIN_PASSWORD_HASH) {
+                AdminSecurityManager.resetAttempts(this)
+
                 val intent = Intent(this, AddProductActivity::class.java)
                 intent.putExtra("scanned_code", scannedCode)
                 startActivity(intent)
             } else {
-                Toast.makeText(this, "كلمة المرور خاطئة", Toast.LENGTH_SHORT).show()
+                AdminSecurityManager.recordFailedAttempt(this)
             }
         }
-        builder.setNegativeButton("إلغاء", null)
+        builder.setNegativeButton("Ø¥Ù„ØºØ§Ø¡", null)
         builder.show()
     }
 

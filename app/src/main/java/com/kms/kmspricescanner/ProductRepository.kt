@@ -12,13 +12,19 @@ class ProductRepository(private val productDao: ProductDao) {
     suspend fun searchProducts(query: String): List<ProductEntity> = productDao.searchProducts(query)
     suspend fun getProductsByDepartment(deptName: String): List<ProductEntity> = productDao.getProductsByDepartment(deptName)
 
-    // ✅ دالة جديدة: تحميل ملف الـ CSV باستخدام Retrofit وحفظه في الذاكرة
+    // ✅ دالة جديدة: تحميل ملف الـ CSV باستخدام Retrofit وحفظه في الذاكرة (تم تحديثها بالبث المباشر لحماية الذاكرة)
+    // ✅ تحميل الملف بالبث المباشر (متوافق مع الـ Retrofit الخاص بك)
     suspend fun downloadAndSaveCsv(context: Context, url: String, fileName: String): Boolean {
         return try {
             val response = RetrofitClient.apiService.downloadCsv(url)
-            val fileOutputStream = context.openFileOutput(fileName, Context.MODE_PRIVATE)
-            fileOutputStream.write(response.bytes())
-            fileOutputStream.close()
+            val file = File(context.filesDir, fileName)
+
+            // بما أن response هو الـ ResponseBody مباشرة، نستخدم byteStream فوراً
+            response.byteStream().use { inputStream ->
+                file.outputStream().use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+            }
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -26,22 +32,36 @@ class ProductRepository(private val productDao: ProductDao) {
         }
     }
 
-    // ✅ دوال الاتصال بالسيرفر للحصول على السمات (Theme) والبانرات وحالة السيرفر
+    // ✅ دوال الاتصال بالسيرفر (محمية بالتوكن الأمني)
     suspend fun fetchTheme(): String? {
         return try {
-            RetrofitClient.apiService.postToGoogleScript(Config.APPS_SCRIPT_URL, mapOf("action" to "getTheme"))
+            val params = mapOf(
+                "action" to "getTheme",
+                "token" to Config.SECRET_API_TOKEN // 🔒 إرفاق المفتاح
+            )
+            RetrofitClient.apiService.postToGoogleScript(Config.APPS_SCRIPT_URL, params)
         } catch (e: Exception) { null }
     }
 
     suspend fun fetchBanners(): String? {
         return try {
-            RetrofitClient.apiService.postToGoogleScript(Config.APPS_SCRIPT_URL, mapOf("action" to "getBanners"))
+            val params = mapOf(
+                "action" to "getBanners",
+                "token" to Config.SECRET_API_TOKEN // 🔒 إرفاق المفتاح
+            )
+            RetrofitClient.apiService.postToGoogleScript(Config.APPS_SCRIPT_URL, params)
         } catch (e: Exception) { null }
     }
 
     suspend fun checkServerStatus(url: String): String? {
         return try {
-            RetrofitClient.apiService.checkServerStatus(url)
+            // 🔒 دمج المفتاح مع الرابط بذكاء إذا كان الطلب من نوع GET
+            val secureUrl = if (url.contains("?")) {
+                "$url&token=${Config.SECRET_API_TOKEN}"
+            } else {
+                "$url?token=${Config.SECRET_API_TOKEN}"
+            }
+            RetrofitClient.apiService.checkServerStatus(secureUrl)
         } catch (e: Exception) { null }
     }
 
@@ -62,28 +82,28 @@ class ProductRepository(private val productDao: ProductDao) {
             while (fileContent.readLine().also { line = it } != null) {
                 val tokens = fastCsvSplit(line!!)
                 if (tokens.size >= 8) {
+                    val productName = tokens[2]
                     tempProductsList.add(
                         ProductEntity(
                             localBarcode = tokens[0],
                             globalBarcode = tokens[1],
-                            name = tokens[2],
+                            name = productName,
                             pricePiece = tokens[3],
                             priceDozen = tokens[4],
                             priceCarton = tokens[5],
                             imageUrl = tokens[6],
                             department = tokens[7],
                             branch = if (tokens.size > 8) tokens[8] else "عام",
-                            // ✅ سحب المخزون بأمان تام (العمود رقم 10 في الإكسيل)
-                            // إذا كان الحقل فارغاً أو غير موجود، نضع "0" افتراضياً
-                            stock = if (tokens.size > 9 && tokens[9].isNotBlank()) tokens[9] else "0"
+                            stock = if (tokens.size > 9 && tokens[9].isNotBlank()) tokens[9] else "0",
+                            // ✅ السحر المعماري هنا: توحيد الاسم وحفظه في العمود السري لتسريع البحث
+                            normalizedName = productName.normalizeArabicForSearch()
                         )
                     )
                 }
             }
 
             if (tempProductsList.isNotEmpty()) {
-                productDao.deleteAll()
-                productDao.insertAll(tempProductsList)
+                productDao.replaceAllData(tempProductsList)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -107,5 +127,11 @@ class ProductRepository(private val productDao: ProductDao) {
         }
         result.add(line.substring(start).replace("\"", "").trim())
         return result
+    }
+
+    // دالة السجل
+    suspend fun getProductsForHistory(barcodes: List<String>): List<ProductEntity> {
+        if (barcodes.isEmpty()) return emptyList<ProductEntity>()
+        return productDao.getProductsByBarcodes(barcodes)
     }
 }

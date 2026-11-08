@@ -34,10 +34,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val themeData: LiveData<String> = _themeData
 
     private var totalProductsCount = 0
-
     private var currentFilter = SearchFilterState()
-
-    // ✅ ذاكرة القسم: ليتذكر المحرك القسم الحالي أثناء الفلترة
     private var currentDepartment = ""
 
     init {
@@ -87,7 +84,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (currentQuery.isNotEmpty()) {
             searchProducts(currentQuery)
         } else if (currentDepartment.isNotEmpty()) {
-            // ✅ إذا كان في قسم معين، قم بفلترة القسم بدلاً من طرده للخارج
             getProductsByDepartment(currentDepartment)
         } else {
             loadAllProducts()
@@ -122,7 +118,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadAllProducts() {
-        currentDepartment = "" // ✅ تصفير الذاكرة لأنه خرج للرئيسية
+        currentDepartment = ""
         viewModelScope.launch {
             val all = repository.getAllProducts()
             val finalResults = applyFiltersToList(all)
@@ -134,19 +130,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun searchProducts(query: String) {
         searchJob?.cancel()
-        currentDepartment = "" // ✅ تصفير الذاكرة لأن البحث عالمي
+        currentDepartment = ""
 
         searchJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(250)
+            kotlinx.coroutines.delay(250) // للحد من الإرسال السريع جداً أثناء الكتابة
 
+            // ✅ تبسيط البحث: نستخدم نفس أداة التوحيد الذكية على الكلمة التي يكتبها الموظف
             var normalizedQuery = query.trim()
                 .replace('٠', '0').replace('١', '1').replace('٢', '2')
                 .replace('٣', '3').replace('٤', '4').replace('٥', '5')
                 .replace('٦', '6').replace('٧', '7').replace('٨', '8')
                 .replace('٩', '9')
-                .replace('ة', 'ه')
-                .replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
-                .replace('ى', 'ي')
+                .normalizeArabicForSearch() // استدعاء الأداة السحرية
                 .lowercase()
 
             val isBarcode = normalizedQuery.any { it.isDigit() } && !normalizedQuery.any { it.isLetter() }
@@ -162,7 +157,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (normalizedQuery.isEmpty()) {
                 showEmptyScreen()
             } else {
-                val rawResults = withContext(Dispatchers.IO) { repository.searchProducts(normalizedQuery) }
+                val rawResults = withContext(Dispatchers.IO) {
+                    repository.searchProducts(normalizedQuery) // يرسل الكلمة المبسطة للقاعدة السريعة
+                }
                 val finalResults = applyFiltersToList(rawResults)
 
                 if (finalResults.isNotEmpty()) {
@@ -179,7 +176,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getProductsByDepartment(deptName: String) {
-        currentDepartment = deptName // ✅ حفظ القسم في الذاكرة
+        currentDepartment = deptName
 
         viewModelScope.launch {
             val rawResults = withContext(Dispatchers.IO) {
@@ -200,31 +197,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadHistoryProducts(historyBarcodes: List<String>) {
-        currentDepartment = "" // تصفير الذاكرة
+        currentDepartment = ""
         viewModelScope.launch {
             _uiState.value = ProductUiState.Loading
+
+            if (historyBarcodes.isEmpty()) {
+                _uiState.value = ProductUiState.Success(emptyList<ProductEntity>(), "سجل آخر العمليات (0)")
+                return@launch
+            }
+
             val historyProducts = withContext(Dispatchers.IO) {
-                val allProducts = repository.getAllProducts()
-
-                // ✅ 1. بناء خريطتين (محلي ودولي) مع تنظيف قاسي للبيانات (تماما كما تفعل الكاميرا)
-                val localMap = allProducts.associateBy {
-                    var clean = it.localBarcode.replace(Regex("\\s+"), "").trimStart('0')
-                    if(clean.isEmpty()) clean = "0"
-                    clean
-                }
-                val globalMap = allProducts.associateBy {
-                    var clean = it.globalBarcode.replace(Regex("\\s+"), "").trimStart('0')
-                    if(clean.isEmpty()) clean = "0"
-                    clean
-                }
-
-                // ✅ 2. مطابقة السجل بذكاء (نبحث في المحلي، وإن لم نجده نبحث في الدولي)
-                historyBarcodes.mapNotNull { rawBarcode ->
-                    var cleanCode = rawBarcode.replace(Regex("\\s+"), "").trimStart('0')
-                    if (cleanCode.isEmpty()) cleanCode = "0"
-
-                    localMap[cleanCode] ?: globalMap[cleanCode]
-                }
+                repository.getProductsForHistory(historyBarcodes)
             }
 
             val finalResults = applyFiltersToList(historyProducts)
@@ -253,7 +236,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 totalProductsCount = allProducts.size
                 _departments.value = allProducts.map { it.department.trim() }
                     .filter { it.isNotEmpty() && !it.contains("http") }.distinct().sorted()
-                _uiState.value = ProductUiState.Success(emptyList(), "تم التحديث بنجاح! العدد الكلي: ${allProducts.size} صنف\nيرجى البحث أو اختيار قسم")
+
+                // ✅ تم إصلاح الخطأ بتحديد نوع القائمة <ProductEntity>
+                _uiState.value = ProductUiState.Success(emptyList<ProductEntity>(), "تم التحديث بنجاح! العدد الكلي: ${allProducts.size} صنف\nيرجى البحث أو اختيار قسم")
             } else {
                 _uiState.value = ProductUiState.Error("فشل التحديث: يرجى التحقق من الاتصال بالإنترنت")
             }

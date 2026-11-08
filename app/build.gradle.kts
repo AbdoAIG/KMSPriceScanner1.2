@@ -6,21 +6,25 @@ plugins {
 
 android {
     namespace = "com.kms.kmspricescanner"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.kms.kmspricescanner"
         minSdk = 24
-        targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        targetSdk = 35
+        versionCode = 3
+        versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildFeatures {
+            viewBinding = true
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true // ✅ تم تفعيل التشفير
+            isShrinkResources = true // ✅ تم تفعيل ضغط الموارد لتقليل حجم التطبيق
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

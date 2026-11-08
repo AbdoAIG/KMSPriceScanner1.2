@@ -23,5 +23,16 @@ data class ProductEntity(
     val imageUrl: String,
     val department: String,
     val branch: String,
-    val stock: String // ✅ تمت إضافة حقل المخزون هنا
+    val stock: String, // تمت إضافة حقل المخزون هنا
+    // ✅ العمود السري الجديد لتسريع البحث (بدون التأثير على الاسم الأصلي المعروض للمستخدم)
+    val normalizedName: String = ""
 )
+
+// ✅ أداة سحرية لتوحيد الحروف العربية لتسريع البحث
+fun String.normalizeArabicForSearch(): String {
+    return this.replace("ة", "ه")
+        .replace("أ", "ا")
+        .replace("إ", "ا")
+        .replace("آ", "ا")
+        .replace("ى", "ي")
+}
