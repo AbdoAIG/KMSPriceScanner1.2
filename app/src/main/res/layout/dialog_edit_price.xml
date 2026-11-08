@@ -25,15 +25,19 @@
             android:gravity="center"
             android:layout_marginBottom="24dp"/>
 
+        <!-- ✅ تطبيق ألوان الخطوط السوداء الصريحة على حقول الإدخال -->
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            app:hintTextColor="#000000"
+            android:textColorHint="#757575"
             android:hint="سعر القطعة (ج.م)">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_edit_price_piece"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:textColor="#000000"
                 android:inputType="numberDecimal"/>
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -42,11 +46,14 @@
             android:layout_height="wrap_content"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_marginTop="12dp"
+            app:hintTextColor="#000000"
+            android:textColorHint="#757575"
             android:hint="سعر الدستة (ج.م)">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_edit_price_dozen"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:textColor="#000000"
                 android:inputType="numberDecimal"/>
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -55,11 +62,14 @@
             android:layout_height="wrap_content"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_marginTop="12dp"
+            app:hintTextColor="#000000"
+            android:textColorHint="#757575"
             android:hint="سعر الكرتونة (ج.م)">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_edit_price_carton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:textColor="#000000"
                 android:inputType="numberDecimal"/>
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -69,6 +79,7 @@
             android:orientation="horizontal"
             android:layout_marginTop="24dp">
 
+            <!-- ✅ توحيد لون زر الإلغاء ليكون رمادياً داكناً (#424242) مثل مربع الباسوورد -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_cancel_edit"
                 style="@style/Widget.MaterialComponents.Button.TextButton"
@@ -76,7 +87,7 @@
                 android:layout_weight="1"
                 android:layout_height="56dp"
                 android:text="إلغاء"
-                android:textColor="#757575"/>
+                android:textColor="#424242"/>
 
             <Space
                 android:layout_width="16dp"
@@ -88,7 +99,7 @@
                 android:layout_weight="1"
                 android:layout_height="56dp"
                 android:text="حفظ التعديل"
-                app:backgroundTint="#00695C"/>
+                app:backgroundTint="#0388fc"/>
         </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

@@ -1,71 +1,73 @@
 package com.kms.kmspricescanner
 
 import android.content.Context
+import android.util.Log
 import java.io.BufferedReader
 import java.io.File
+import java.io.IOException
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
 
 class ProductRepository(private val productDao: ProductDao) {
+    // ✅ علامة مسجلة لتتبع الأخطاء في نظام أندرويد (Logcat)
+    private val TAG = "KMS_Repository"
 
     suspend fun getAllProducts(): List<ProductEntity> = productDao.getAllProducts()
     suspend fun searchProducts(query: String): List<ProductEntity> = productDao.searchProducts(query)
     suspend fun getProductsByDepartment(deptName: String): List<ProductEntity> = productDao.getProductsByDepartment(deptName)
 
-    // ✅ دالة جديدة: تحميل ملف الـ CSV باستخدام Retrofit وحفظه في الذاكرة (تم تحديثها بالبث المباشر لحماية الذاكرة)
-    // ✅ تحميل الملف بالبث المباشر (متوافق مع الـ Retrofit الخاص بك)
     suspend fun downloadAndSaveCsv(context: Context, url: String, fileName: String): Boolean {
         return try {
             val response = RetrofitClient.apiService.downloadCsv(url)
             val file = File(context.filesDir, fileName)
 
-            // بما أن response هو الـ ResponseBody مباشرة، نستخدم byteStream فوراً
             response.byteStream().use { inputStream ->
                 file.outputStream().use { outputStream ->
                     inputStream.copyTo(outputStream)
                 }
             }
             true
+        } catch (e: IOException) {
+            // ✅ تصنيف الخطأ: مشكلة في الشبكة أو انقطاع الإنترنت
+            Log.e(TAG, "❌ Network Error: Failed to download CSV. Please check internet connection.", e)
+            false
         } catch (e: Exception) {
-            e.printStackTrace()
+            // ✅ تصنيف الخطأ: خطأ غير متوقع
+            Log.e(TAG, "❌ Unknown Error: Something went wrong while downloading CSV.", e)
             false
         }
     }
 
-    // ✅ دوال الاتصال بالسيرفر (محمية بالتوكن الأمني)
     suspend fun fetchTheme(): String? {
         return try {
-            val params = mapOf(
-                "action" to "getTheme",
-                "token" to Config.SECRET_API_TOKEN // 🔒 إرفاق المفتاح
-            )
+            val params = mapOf("action" to "getTheme", "token" to Config.SECRET_API_TOKEN)
             RetrofitClient.apiService.postToGoogleScript(Config.APPS_SCRIPT_URL, params)
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ API Error: Failed to fetch theme.", e)
+            null
+        }
     }
 
     suspend fun fetchBanners(): String? {
         return try {
-            val params = mapOf(
-                "action" to "getBanners",
-                "token" to Config.SECRET_API_TOKEN // 🔒 إرفاق المفتاح
-            )
+            val params = mapOf("action" to "getBanners", "token" to Config.SECRET_API_TOKEN)
             RetrofitClient.apiService.postToGoogleScript(Config.APPS_SCRIPT_URL, params)
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ API Error: Failed to fetch banners.", e)
+            null
+        }
     }
 
     suspend fun checkServerStatus(url: String): String? {
         return try {
-            // 🔒 دمج المفتاح مع الرابط بذكاء إذا كان الطلب من نوع GET
-            val secureUrl = if (url.contains("?")) {
-                "$url&token=${Config.SECRET_API_TOKEN}"
-            } else {
-                "$url?token=${Config.SECRET_API_TOKEN}"
-            }
+            val secureUrl = if (url.contains("?")) "$url&token=${Config.SECRET_API_TOKEN}" else "$url?token=${Config.SECRET_API_TOKEN}"
             RetrofitClient.apiService.checkServerStatus(secureUrl)
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ API Error: Failed to check server status.", e)
+            null
+        }
     }
 
-    // دالة تحديث قاعدة البيانات من الملف المحلي
     suspend fun refreshDatabaseFromCsv(context: Context, fileName: String) {
         val tempProductsList = ArrayList<ProductEntity>(70000)
         var fileContent: BufferedReader? = null
@@ -95,7 +97,6 @@ class ProductRepository(private val productDao: ProductDao) {
                             department = tokens[7],
                             branch = if (tokens.size > 8) tokens[8] else "عام",
                             stock = if (tokens.size > 9 && tokens[9].isNotBlank()) tokens[9] else "0",
-                            // ✅ السحر المعماري هنا: توحيد الاسم وحفظه في العمود السري لتسريع البحث
                             normalizedName = productName.normalizeArabicForSearch()
                         )
                     )
@@ -105,8 +106,10 @@ class ProductRepository(private val productDao: ProductDao) {
             if (tempProductsList.isNotEmpty()) {
                 productDao.replaceAllData(tempProductsList)
             }
+        } catch (e: IOException) {
+            Log.e(TAG, "❌ File Error: Could not read CSV file from storage.", e)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "❌ Parsing Error: Failed to parse CSV data. Data format might be corrupted.", e)
         } finally {
             fileContent?.close()
         }
@@ -129,9 +132,8 @@ class ProductRepository(private val productDao: ProductDao) {
         return result
     }
 
-    // دالة السجل
     suspend fun getProductsForHistory(barcodes: List<String>): List<ProductEntity> {
-        if (barcodes.isEmpty()) return emptyList<ProductEntity>()
+        if (barcodes.isEmpty()) return emptyList()
         return productDao.getProductsByBarcodes(barcodes)
     }
 }

@@ -182,31 +182,10 @@ class ProductDetailsActivity : AppCompatActivity() {
     // --- دوال تعديل الأسعار الأمنة ---
 
     private fun showAdminPasswordDialog() {
-        // âœ… 1. Ù†Ø³Ø£Ù„ Ø§Ù„Ø­Ø§Ø±Ø³: Ù‡Ù„ Ø§Ù„Ù†Ø¸Ø§Ù… Ù…Ù‚Ù ÙˆÙ„ØŸ
-        if (AdminSecurityManager.isLockedOut(this)) return
-
-        val builder = AlertDialog.Builder(this)
-        builder.setTitle("Ø¥Ø°Ù† Ø§Ù„Ù…Ø³Ø¤ÙˆÙ„")
-        builder.setMessage("Ø£Ø¯Ø®Ù„ ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ù„ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ø£Ø³Ø¹Ø§Ø±:")
-
-        val input = EditText(this)
-        input.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-        input.hint = "****"
-        builder.setView(input)
-
-        builder.setPositiveButton("Ø¯Ø®ÙˆÙ„") { _, _ ->
-            val enteredHash = HashHelper.sha256(input.text.toString())
-            if (enteredHash == Config.ADMIN_PASSWORD_HASH) {
-                // âœ… 2. Ø§Ù„Ø¨Ø§Ø³ÙˆÙˆØ±Ø¯ ØµØ­ÙŠØ­: ØµÙ Ø± Ø§Ù„Ø¹Ø¯Ø§Ø¯
-                AdminSecurityManager.resetAttempts(this)
-                showEditPriceDialog()
-            } else {
-                // âœ… 3. Ø§Ù„Ø¨Ø§Ø³ÙˆÙˆØ±Ø¯ Ø®Ø§Ø·Ø¦: Ø³Ø¬Ù„ Ù…Ø­Ø§ÙˆÙ„Ø© Ø®Ø·Ø£
-                AdminSecurityManager.recordFailedAttempt(this)
-            }
+        // نستدعي الدالة المركزية، وفي حالة النجاح فقط نعرض ديالوج التعديل
+        AdminSecurityManager.showAuthDialog(this) {
+            showEditPriceDialog()
         }
-        builder.setNegativeButton("Ø¥Ù„ØºØ§Ø¡", null)
-        builder.show()
     }
 
     private fun showEditPriceDialog() {

@@ -5,9 +5,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
@@ -18,6 +17,8 @@ import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,19 +40,15 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.navigation.NavigationView
+import com.kms.kmspricescanner.databinding.ActivityMainBinding
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
-import android.text.InputType
-import android.widget.RadioButton
-import android.widget.RadioGroup
-import com.kms.kmspricescanner.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var viewModel: MainViewModel
-
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var navView: NavigationView
     private lateinit var btnMenu: ImageButton
@@ -67,25 +64,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layoutBranchesContainer: LinearLayout
     private lateinit var cardBannerContainer: androidx.cardview.widget.CardView
     private lateinit var bannerViewPager: ViewPager2
-
-    // ✅ 1. تعريف زر الفلتر كمتغير عام للتحكم فيه من أي مكان
     private lateinit var btnFilter: TextView
-
-    private val bannerImages = ArrayList<Any>()
-    private val sliderHandler = Handler(Looper.getMainLooper())
-    private lateinit var sliderRunnable: Runnable
 
     private var ignoreSearchWatcher = false
     private var searchJob: Job? = null
-
     private var currentDepartmentProducts = ArrayList<ProductEntity>()
     private var productAdapter: ProductRecyclerAdapter? = null
     private var activeBranchFilter: String = "الكل"
-
-    // ✅ 2. ذاكرة الشاشة للقسم الحالي
     private var currentSelectedDept: String = "عرض الكل"
 
     private lateinit var binding: ActivityMainBinding
+
+    // ✅ الاعتماد على مدير البانر المستقل لتقليل حجم هذه الشاشة
+    private lateinit var bannerManager: BannerManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,12 +87,16 @@ class MainActivity : AppCompatActivity() {
         viewModel = ViewModelProvider(this)[MainViewModel::class.java]
 
         initViews()
-        setupBannerSlider()
+
+        // ✅ تشغيل مدير البانر النظيف
+        bannerManager = BannerManager(this, bannerViewPager)
+        bannerManager.loadCachedBanners()
+        bannerManager.startSlider()
+
         setupDrawerFooter()
         setupDrawerInteractions()
 
         applySavedTheme()
-        loadCachedBanners()
 
         viewModel.loadServerData()
 
@@ -127,17 +122,14 @@ class MainActivity : AppCompatActivity() {
         scrollBranches = findViewById(R.id.scroll_branches)
         layoutBranchesContainer = findViewById(R.id.layout_branches_container)
         cardBannerContainer = findViewById(R.id.card_banner_container)
-
-        // ربط زر الفلتر
         btnFilter = findViewById(R.id.btnFilter)
+        bannerViewPager = findViewById(R.id.banner_view_pager)
 
         recyclerViewProducts.layoutManager = LinearLayoutManager(this)
     }
 
-    // ✅ 3. الدالة الذكية التي تحدد متى يظهر زر الفلتر
     private fun updateFilterButtonVisibility() {
         val isSearchEmpty = etSearch.text.isNullOrEmpty()
-        // يختفي الزر فقط إذا كان مربع البحث فارغاً وأنت في شاشة "عرض الكل"
         if (isSearchEmpty && currentSelectedDept == "عرض الكل") {
             btnFilter.visibility = View.GONE
         } else {
@@ -167,9 +159,7 @@ class MainActivity : AppCompatActivity() {
                     etSearch.isEnabled = true
                     btnScan.isEnabled = true
                     etSearch.hint = "ابحث عن منتج..."
-
                     currentDepartmentProducts = ArrayList(state.products)
-
                     if (activeBranchFilter != "الكل") {
                         val branchFiltered = currentDepartmentProducts.filter { it.branch.equals(activeBranchFilter, ignoreCase = true) }
                         updateListView(branchFiltered)
@@ -178,7 +168,6 @@ class MainActivity : AppCompatActivity() {
                         updateListView(state.products)
                         txtStatus.text = state.statusMessage
                     }
-
                     txtStatus.setTextColor(Color.parseColor("#008000"))
                 }
                 is ProductUiState.Error -> {
@@ -197,9 +186,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         viewModel.bannerUrls.observe(this) { urls ->
-            bannerImages.clear()
-            bannerImages.addAll(urls)
-            bannerViewPager.adapter?.notifyDataSetChanged()
+            // ✅ تمرير التحديث لمدير البانر
+            bannerManager.updateBanners(urls)
         }
 
         viewModel.themeData.observe(this) {
@@ -220,12 +208,9 @@ class MainActivity : AppCompatActivity() {
 
         navView.setNavigationItemSelectedListener { menuItem ->
             val selectedDept = menuItem.title.toString()
-
-            // ✅ تحديث ذاكرة الشاشة للقسم الحالي
             currentSelectedDept = selectedDept
             activeBranchFilter = "الكل"
 
-            // مسح شريط البحث بذكاء لتجنب التداخل
             ignoreSearchWatcher = true
             etSearch.setText("")
             ignoreSearchWatcher = false
@@ -246,9 +231,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // ✅ استدعاء دالة الرؤية لإظهار زر الفلتر في القسم
             updateFilterButtonVisibility()
-
             drawerLayout.closeDrawer(GravityCompat.START)
             true
         }
@@ -261,17 +244,14 @@ class MainActivity : AppCompatActivity() {
 
         etSearch.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 if (s.isNullOrEmpty()) {
                     etSearch.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0)
                 } else {
                     etSearch.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, android.R.drawable.ic_menu_close_clear_cancel, 0)
-                    // ✅ بمجرد بدء البحث اليدوي، نعتبر أن المستخدم خرج من القسم إلى البحث العام
                     currentSelectedDept = "عرض الكل"
                 }
 
-                // تحديث ظهور زر الفلتر بناءً على النص والقسم
                 updateFilterButtonVisibility()
 
                 if (ignoreSearchWatcher) return
@@ -288,7 +268,6 @@ class MainActivity : AppCompatActivity() {
                     viewModel.searchProducts(s.toString())
                 }
             }
-
             override fun afterTextChanged(s: Editable?) {}
         })
 
@@ -354,7 +333,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun showScanHistory() {
         val historyBarcodes = ScanHistoryHelper.getHistory(this)
-
         if (historyBarcodes.isEmpty()) {
             Toast.makeText(this, "لم يتم فتح أي منتجات بعد", Toast.LENGTH_SHORT).show()
             return
@@ -369,8 +347,6 @@ class MainActivity : AppCompatActivity() {
 
         scrollBranches.visibility = View.GONE
         cardBannerContainer.visibility = View.GONE
-
-        // عند فتح السجل يتم إعادة تعيين القسم وتحديث الزر
         currentSelectedDept = "عرض الكل"
         updateFilterButtonVisibility()
 
@@ -378,21 +354,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openProductDetailsPage(p: ProductEntity) {
-        // ✅ ضمان حفظ الباركود المتوفر (محلي وإن كان فارغاً نستخدم الدولي) لتجنب السجلات الفارغة
         val validBarcode = if (p.localBarcode.isNotBlank()) p.localBarcode else p.globalBarcode
         ScanHistoryHelper.saveProduct(this, validBarcode)
 
-        val intent = Intent(this, ProductDetailsActivity::class.java)
-        intent.putExtra("name", p.name)
-        intent.putExtra("pricePiece", p.pricePiece)
-        intent.putExtra("priceDozen", p.priceDozen)
-        intent.putExtra("priceCarton", p.priceCarton)
-        intent.putExtra("localBarcode", p.localBarcode)
-        intent.putExtra("globalBarcode", p.globalBarcode)
-        intent.putExtra("department", p.department)
-        intent.putExtra("branch", p.branch)
-        intent.putExtra("imageUrl", p.imageUrl)
-        intent.putExtra("stock", p.stock)
+        val intent = Intent(this, ProductDetailsActivity::class.java).apply {
+            putExtra("name", p.name)
+            putExtra("pricePiece", p.pricePiece)
+            putExtra("priceDozen", p.priceDozen)
+            putExtra("priceCarton", p.priceCarton)
+            putExtra("localBarcode", p.localBarcode)
+            putExtra("globalBarcode", p.globalBarcode)
+            putExtra("department", p.department)
+            putExtra("branch", p.branch)
+            putExtra("imageUrl", p.imageUrl)
+            putExtra("stock", p.stock)
+        }
         startActivity(intent)
     }
 
@@ -406,31 +382,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPasswordDialog(scannedCode: String) {
-        // âœ… 1. Ù†Ø³Ø£Ù„ Ø§Ù„Ø­Ø§Ø±Ø³: Ù‡Ù„ Ø§Ù„Ù†Ø¸Ø§Ù… Ù…Ù‚Ù ÙˆÙ„ØŸ
-        if (AdminSecurityManager.isLockedOut(this)) return
-
-        val builder = AlertDialog.Builder(this)
-        builder.setTitle("Ø¥Ø°Ù† Ø§Ù„Ù…Ø³Ø¤ÙˆÙ„")
-        builder.setMessage("Ø£Ø¯Ø®Ù„ ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±:")
-        val input = EditText(this)
-        input.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-        input.hint = "****"
-        builder.setView(input)
-
-        builder.setPositiveButton("Ø¯Ø®ÙˆÙ„") { _, _ ->
-            val enteredHash = HashHelper.sha256(input.text.toString())
-            if (enteredHash == Config.ADMIN_PASSWORD_HASH) {
-                AdminSecurityManager.resetAttempts(this)
-
-                val intent = Intent(this, AddProductActivity::class.java)
-                intent.putExtra("scanned_code", scannedCode)
-                startActivity(intent)
-            } else {
-                AdminSecurityManager.recordFailedAttempt(this)
-            }
+        AdminSecurityManager.showAuthDialog(this) {
+            val intent = Intent(this, AddProductActivity::class.java)
+            intent.putExtra("scanned_code", scannedCode)
+            startActivity(intent)
         }
-        builder.setNegativeButton("Ø¥Ù„ØºØ§Ø¡", null)
-        builder.show()
     }
 
     private fun showConfirmationDialog() {
@@ -485,10 +441,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         btn.background = gradientDrawable
-
         btn.setOnClickListener {
             activeBranchFilter = branchName
-
             if (isAll) {
                 updateListView(currentDepartmentProducts)
                 txtStatus.text = "قسم: $deptName (${currentDepartmentProducts.size})"
@@ -527,40 +481,6 @@ class MainActivity : AppCompatActivity() {
                 view.background = bg
             }
         }
-    }
-
-    private fun setupBannerSlider() {
-        bannerViewPager = findViewById(R.id.banner_view_pager)
-        val adapter = BrandsAdapter(bannerImages)
-        bannerViewPager.adapter = adapter
-        bannerViewPager.clipToPadding = false
-        bannerViewPager.clipChildren = false
-        bannerViewPager.offscreenPageLimit = 3
-        bannerViewPager.getChildAt(0).overScrollMode = RecyclerView.OVER_SCROLL_NEVER
-
-        sliderRunnable = Runnable {
-            if (bannerImages.size > 1) {
-                var nextItem = bannerViewPager.currentItem + 1
-                if (nextItem >= bannerImages.size) nextItem = 0
-                bannerViewPager.setCurrentItem(nextItem, true)
-            }
-            sliderHandler.postDelayed(sliderRunnable, 4000)
-        }
-    }
-
-    private fun loadCachedBanners() {
-        val prefs = getSharedPreferences("KMS_Prefs", Context.MODE_PRIVATE)
-        val cachedString = prefs.getString("cached_banners", null)
-        bannerImages.clear()
-        if (!cachedString.isNullOrEmpty()) {
-            val urls = cachedString.split(",")
-            for (url in urls) {
-                if (url.trim().isNotEmpty()) bannerImages.add(url.trim())
-            }
-        } else {
-            bannerImages.add(R.drawable.company_logo)
-        }
-        bannerViewPager.adapter?.notifyDataSetChanged()
     }
 
     private fun applySavedTheme() {
@@ -647,15 +567,11 @@ class MainActivity : AppCompatActivity() {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
-
         val syncRequest = PeriodicWorkRequestBuilder<SyncWorker>(12, TimeUnit.HOURS)
             .setConstraints(constraints)
             .build()
-
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            "KmsDailySync",
-            ExistingPeriodicWorkPolicy.KEEP,
-            syncRequest
+            "KmsDailySync", ExistingPeriodicWorkPolicy.KEEP, syncRequest
         )
     }
 
@@ -710,18 +626,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun showFilterDialog() {
         val currentFilters = viewModel.getFilters()
-
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(60, 40, 60, 40)
         }
-
         val etMin = EditText(this).apply {
             hint = "الحد الأدنى للسعر (جنيه)"
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
             currentFilters.minPrice?.let { setText(it.toString()) }
         }
-
         val etMax = EditText(this).apply {
             hint = "الحد الأقصى للسعر (جنيه)"
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
@@ -730,19 +643,16 @@ class MainActivity : AppCompatActivity() {
             params.setMargins(0, 20, 0, 20)
             layoutParams = params
         }
-
         val titleSort = TextView(this).apply {
             text = "ترتيب النتائج:"
             textSize = 16f
             setTextColor(Color.BLACK)
             setPadding(0, 20, 0, 10)
         }
-
         val radioGroup = RadioGroup(this)
         val rbNone = RadioButton(this).apply { text = "الترتيب الافتراضي" }
         val rbAsc = RadioButton(this).apply { text = "السعر: من الأقل للأعلى" }
         val rbDesc = RadioButton(this).apply { text = "السعر: من الأعلى للأقل" }
-
         radioGroup.addView(rbNone)
         radioGroup.addView(rbAsc)
         radioGroup.addView(rbDesc)
@@ -759,7 +669,7 @@ class MainActivity : AppCompatActivity() {
         layout.addView(radioGroup)
 
         AlertDialog.Builder(this)
-            .setTitle("تصفية وترتيب البحث \uD83D\uDD0D")
+            .setTitle("تصفية وترتيب البحث 🔍")
             .setView(layout)
             .setPositiveButton("تطبيق") { _, _ ->
                 val min = etMin.text.toString().toDoubleOrNull()
@@ -778,5 +688,14 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "تم مسح الفلاتر", Toast.LENGTH_SHORT).show()
             }
             .show()
+    }
+
+    // 🔥 ضمان إغلاق المهام المفتوحة لتجنب استنزاف البطارية وتسرب الذاكرة
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::bannerManager.isInitialized) {
+            bannerManager.stopSlider()
+        }
+        searchJob?.cancel()
     }
 }

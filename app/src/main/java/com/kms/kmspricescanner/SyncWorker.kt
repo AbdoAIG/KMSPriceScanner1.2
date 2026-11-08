@@ -33,7 +33,8 @@ class SyncWorker(
                     Result.retry()
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                // ✅ تسجيل سبب فشل المزامنة في الخلفية لكي يتمكن المطور من قراءته
+                android.util.Log.e("KMS_SyncWorker", "❌ Background sync failed: ${e.message}", e)
                 Result.retry()
             }
         }

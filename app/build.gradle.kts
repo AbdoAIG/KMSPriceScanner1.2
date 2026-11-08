@@ -1,7 +1,15 @@
+import java.util.Properties // ✅ الاستيراد يجب أن يكون في السطر الأول دائماً
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("kotlin-kapt")
+}
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
 }
 
 android {
@@ -15,9 +23,14 @@ android {
         versionCode = 3
         versionName = "1.2"
 
+        // ✅ حقن الأسرار من الخزنة إلى التطبيق
+        buildConfigField("String", "APPS_SCRIPT_URL", localProperties.getProperty("KMS_APPS_SCRIPT_URL") ?: "\"\"")
+        buildConfigField("String", "SECRET_API_TOKEN", localProperties.getProperty("KMS_SECRET_API_TOKEN") ?: "\"\"")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildFeatures {
             viewBinding = true
+            buildConfig = true // ✅ تفعيل توليد كلاس الأسرار
         }
     }
 
@@ -60,18 +73,12 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-scalars:2.9.0")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
-    // --- مكتبة ZXing (المستخدمة حالياً) ---
-    // ضرورية لكي يعمل الكود الحالي
-    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
-    implementation("com.google.zxing:core:3.4.1")
-
-    // --- مكتبات ML Kit + CameraX (للمستقبل) ---
+    // --- مكتبات ML Kit + CameraX للمسح الصاروخي ---
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
     implementation("androidx.camera:camera-core:1.3.0")
     implementation("androidx.camera:camera-camera2:1.3.0")
     implementation("androidx.camera:camera-lifecycle:1.3.0")
     implementation("androidx.camera:camera-view:1.3.0")
-    implementation("com.google.guava:guava:31.1-android")
 
     // --- Testing ---
     testImplementation("junit:junit:4.13.2")
